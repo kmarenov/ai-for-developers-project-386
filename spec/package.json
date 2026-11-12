@@ -1,0 +1,14 @@
+{
+  "name": "@call-calendar/spec",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "compile": "tsp compile ."
+  },
+  "devDependencies": {
+    "@typespec/compiler": "1.18.0",
+    "@typespec/http": "1.18.0",
+    "@typespec/openapi3": "1.18.0"
+  }
+}

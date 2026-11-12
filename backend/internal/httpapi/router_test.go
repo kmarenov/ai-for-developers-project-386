@@ -1,0 +1,40 @@
+package httpapi_test
+
+import (
+	"encoding/json"
+	"io"
+	"log/slog"
+	"net/http"
+	"net/http/httptest"
+	"testing"
+
+	"github.com/kmarenov/ai-for-developers-project-386/backend/internal/httpapi"
+)
+
+func TestHealthEndpoint(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	server := httptest.NewServer(httpapi.NewRouter(logger, "http://localhost:5173"))
+	t.Cleanup(server.Close)
+
+	response, err := server.Client().Get(server.URL + "/health")
+	if err != nil {
+		t.Fatalf("GET /health: %v", err)
+	}
+	defer func() {
+		_ = response.Body.Close()
+	}()
+
+	if response.StatusCode != http.StatusOK {
+		t.Fatalf("status = %d, want %d", response.StatusCode, http.StatusOK)
+	}
+
+	var body struct {
+		Status string `json:"status"`
+	}
+	if err := json.NewDecoder(response.Body).Decode(&body); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if body.Status != "ok" {
+		t.Fatalf("status = %q, want %q", body.Status, "ok")
+	}
+}

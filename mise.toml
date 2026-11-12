@@ -1,0 +1,73 @@
+[settings]
+experimental = true
+
+[tools]
+go = "1.26.11"
+golangci-lint = "2.9.0"
+hk = { version = "2.12.0", workflow = "release.yml" }
+jactionlint = { version = "2.5.0", workflow = "release.yaml" }
+node = "24.22.3"
+oxfmt = "0.78.0"
+oxlint = "1.93.0"
+pitchfork = { version = "2.34.0", workflow = "release.yml@refs/heads/main" }
+pnpm = "10.34.9"
+shellcheck = "0.11.0"
+
+[env]
+_.path = ["node_modules/.bin", "frontend/node_modules/.bin"]
+
+[hooks]
+postinstall = { task = "install" }
+
+[tasks.install]
+description = "Install JavaScript dependencies"
+run = "pnpm install --frozen-lockfile"
+
+[tasks.setup]
+description = "Install dependencies and Git hooks"
+run = ["mise run install", "hk install --mise"]
+
+[tasks.codegen]
+description = "Compile TypeSpec and regenerate the frontend SDK"
+run = "pnpm codegen"
+
+[tasks.build]
+description = "Build backend and frontend"
+run = ["cd backend && go build ./...", "pnpm --dir frontend build"]
+
+[tasks.lint]
+description = "Run formatting and lint checks"
+run = "hk check --all --skip-step test --skip-step typecheck"
+
+[tasks.typecheck]
+description = "Type-check the frontend"
+run = "pnpm --dir frontend typecheck"
+
+[tasks."test:backend"]
+description = "Run backend tests"
+run = "cd backend && go test ./..."
+
+[tasks."test:frontend"]
+description = "Run frontend tests"
+run = "pnpm --dir frontend test"
+
+[tasks.test]
+description = "Run backend and frontend tests"
+run = ["mise run test:backend", "mise run test:frontend"]
+
+[tasks.check]
+description = "Run all checks: format, lint, typecheck, tests"
+run = "hk check --all"
+
+[tasks.dev]
+description = "Start backend and frontend dev servers"
+daemons = ["backend", "frontend"]
+run = "echo 'Backend: http://localhost:8081  Frontend: http://localhost:5173'"
+
+[daemons.backend]
+run = "cd backend && exec go run ./cmd/server"
+ready_port = 8081
+
+[daemons.frontend]
+run = "exec pnpm --dir frontend dev --host 127.0.0.1 --port 5173 --strictPort"
+ready_port = 5173

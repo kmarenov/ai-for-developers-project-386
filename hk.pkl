@@ -1,0 +1,40 @@
+amends "package://github.com/jdx/hk/releases/download/v2.12.0/hk@2.12.0#/Config.pkl"
+import "package://github.com/jdx/hk/releases/download/v2.12.0/hk@2.12.0#/Builtins.pkl"
+
+steps {
+  ["go-fmt"] = Builtins.go_fmt
+  ["golangci-lint"] = Builtins.golangci_lint
+  ["oxfmt"] = (Builtins.oxfmt) {
+    exclude = List(
+      "spec/openapi.yaml",
+      "frontend/src/api/generated/**",
+      "pnpm-lock.yaml",
+      ".github/workflows/hexlet-check.yml",
+    )
+  }
+  ["oxlint"] = (Builtins.ox_lint) {
+    exclude = List(
+      "frontend/src/api/generated/**",
+      "frontend/src/components/ui/**",
+    )
+  }
+  ["jactionlint"] = (Builtins.jactionlint) {
+    exclude = List(".github/workflows/hexlet-check.yml")
+  }
+  ["mise"] = Builtins.mise
+  ["typecheck"] {
+    glob = List("frontend/**/*.ts", "frontend/**/*.tsx")
+    check = "pnpm --dir frontend typecheck"
+  }
+  ["test"] {
+    check = "mise run test"
+  }
+}
+
+hooks {
+  ["commit-msg"] {
+    steps {
+      ["conventional-commit"] = Builtins.check_conventional_commit
+    }
+  }
+}

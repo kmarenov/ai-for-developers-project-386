@@ -1,0 +1,21 @@
+{
+  "name": "call-calendar",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "mise run build",
+    "check": "mise run check",
+    "codegen": "pnpm --dir spec compile && orval",
+    "dev": "mise run dev",
+    "lint": "mise run lint",
+    "test": "mise run test",
+    "typecheck": "mise run typecheck"
+  },
+  "devDependencies": {
+    "orval": "^8.47.0"
+  },
+  "engines": {
+    "node": ">=24"
+  },
+  "packageManager": "pnpm@10.34.9"
+}
