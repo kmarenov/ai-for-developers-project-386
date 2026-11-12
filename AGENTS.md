@@ -25,3 +25,17 @@
 - Backend stays standard-library-first and in-memory (no database). Booking overlap must be mutex-protected; back-to-back slots are allowed. The 14-day window, working hours/timezone, slot step, and slot duration follow the README and contract.
 - Change the API only by editing TypeSpec and running `mise run codegen`. Use the generated TanStack Query hooks rather than duplicating request/response types.
 - Frontend imports use the `@/` alias to `frontend/src`; Vite proxies API paths to `http://localhost:8081`.
+
+## Agent skills
+
+### Issue tracker
+
+Issues live in GitHub Issues on `kmarenov/ai-for-developers-project-386`, operated through the `gh` CLI. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+Default five canonical roles: `needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`. See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Single-context: one `GLOSSARY.md` at the repo root plus `docs/adr/`. See `docs/agents/domain.md`.
