@@ -2,7 +2,8 @@ node_modules/
 dist/
 coverage/
 .vitest/
-.mise/
+.mise/*
+!.mise/locks/
 *.tsbuildinfo
 .DS_Store
 .env

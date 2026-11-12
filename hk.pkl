@@ -9,6 +9,7 @@ steps {
       "spec/openapi.yaml",
       "frontend/src/api/generated/**",
       "pnpm-lock.yaml",
+      ".mise/locks/**",
       ".github/workflows/hexlet-check.yml",
     )
   }
