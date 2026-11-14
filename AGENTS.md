@@ -23,6 +23,8 @@
 - `frontend/` — React + TypeScript + Vite. Routes in `src/App.tsx`, pages in `src/pages`, shadcn components in `src/components/ui` (vendor code, excluded from oxlint).
 - `playwright.config.ts` — E2E config at the repo root. `webServer` starts backend and frontend on `:8091`/`:5191`; tests live in `e2e/`, artifacts in `playwright-report/` and `test-results/` (both gitignored). `tsconfig.e2e.json` type-checks the E2E sources.
 - `Dockerfile` and `docker/` — full-stack image used by hexlet-check: nginx serves the SPA and proxies the Go API on `$PORT` (default `8080`). Build it with `mise run build:docker`; run it locally with `docker run --rm -p 8080:8080 -e PORT=8080 calendar-slot-code:local`.
+- `opencode.json` — project-level MCP config for the Railway remote server (`https://mcp.railway.com`). It carries no credentials: sign in through `/mcps` and keep OAuth tokens outside the repository.
+- `railway.json` — Railway build/deploy settings: root `Dockerfile`, `/health` healthcheck, no sleep. The service listens on the platform-provided `PORT`.
 - `mise.toml` — pinned tools, tasks, daemons, postinstall hook. `mise.lock` and the `.mise/locks/` sidecars pin every platform and npm tool graph; commit them together. `hk.pkl` is the shared formatter/linter/test and Git-hook config.
 
 ## Rules
@@ -35,6 +37,7 @@
 - Generated artifacts are `spec/openapi.yaml`, `frontend/src/api/generated/**`, and any server artifacts emitted by a generator. Never edit them by hand. Change `spec/main.tsp` (or `orval.config.ts`) and run `mise run codegen`; CI re-runs codegen and fails on any diff, including new files. Use the generated TanStack Query hooks rather than duplicating request/response types.
 - Frontend imports use the `@/` alias to `frontend/src`; Vite proxies API paths to `http://localhost:8081`.
 - E2E runs against the real server on isolated ports: no API route mocking, seed data through the API. Keep `workers: 1`, chromium-only, and an explicit `globalTimeout` in `playwright.config.ts`. The pre-commit hook must never require browsers; run E2E only through `mise run check`/`mise run test:e2e`. Each test seeds its own data and never assumes an empty store; smoke covers direct document navigation and reload for SPA routes that collide with API prefixes (`/meeting-types`).
+- Deploy goes through the Railway MCP configured in `opencode.json`; keep credentials in OAuth storage or environment variables, never in Git. The service builds the root `Dockerfile`, receives `PORT` from the platform, and exposes `/health`. Data stays in memory, so every restart or redeploy wipes meeting types and bookings; reseed the public stand through the API after a deploy.
 
 ## Agent skills
 
