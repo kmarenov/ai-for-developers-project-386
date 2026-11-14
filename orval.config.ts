@@ -19,6 +19,12 @@ export default defineConfig({
       override: {
         query: {
           version: 5,
+          options: {
+            retry: 2,
+          },
+        },
+        fetch: {
+          forceSuccessResponse: true,
         },
       },
     },

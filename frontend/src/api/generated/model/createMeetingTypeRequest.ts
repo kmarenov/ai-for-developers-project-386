@@ -7,7 +7,16 @@
  */
 
 export interface CreateMeetingTypeRequest {
+  /**
+     * @minLength 1
+     * @maxLength 100
+     */
   title: string;
+  /** @maxLength 500 */
   description: string;
+  /**
+     * @minimum 5
+     * @maximum 480
+     */
   duration_minutes: number;
 }

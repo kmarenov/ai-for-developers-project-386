@@ -9,6 +9,11 @@
 export interface CreateBookingRequest {
   meeting_type_id: string;
   start_time: string;
+  /**
+     * @minLength 1
+     * @maxLength 100
+     */
   guest_name: string;
+  /** @maxLength 254 */
   guest_email: string;
 }
