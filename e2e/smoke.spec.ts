@@ -10,8 +10,14 @@ test("гость открывает главную и переходит в ка
   await expect(page).toHaveURL(/\/meeting-types$/);
   await expect(page.getByRole("heading", { name: "Типы встреч" })).toBeVisible();
 
-  // Каталог пришёл с настоящего backend, а не из мока: на свежем сервере стор пуст.
-  await expect(page.getByText("Пока нет доступных типов встреч")).toBeVisible();
+  // Каталог пришёл с настоящего backend, а не из мока. Стор общий для всей сессии:
+  // другие сценарии могут его наполнить, поэтому принимаем любой терминальный ответ —
+  // пустое состояние или список. Само пустое состояние проверяют компонентные тесты.
+  const emptyState = page.getByText("Пока нет доступных типов встреч");
+  const catalogItem = page.getByText(/^\d+ минут$/);
+
+  await expect(emptyState.or(catalogItem).first()).toBeVisible();
+  await expect(page.getByText("Не удалось загрузить типы встреч")).toHaveCount(0);
 });
 
 test("backend отвечает на GET /health", async ({ api }) => {
