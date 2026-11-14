@@ -9,11 +9,12 @@ import (
 	"testing"
 
 	"github.com/kmarenov/ai-for-developers-project-386/backend/internal/httpapi"
+	"github.com/kmarenov/ai-for-developers-project-386/backend/internal/meetingtype"
 )
 
 func TestHealthEndpoint(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	server := httptest.NewServer(httpapi.NewRouter(logger, "http://localhost:5173"))
+	server := httptest.NewServer(httpapi.NewRouter(logger, "http://localhost:5173", meetingtype.NewStore()))
 	t.Cleanup(server.Close)
 
 	response, err := server.Client().Get(server.URL + "/health")
