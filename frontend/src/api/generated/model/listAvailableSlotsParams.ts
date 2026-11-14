@@ -7,6 +7,5 @@
  */
 
 export type ListAvailableSlotsParams = {
-  typeId: string;
-  date: string;
+  meeting_type_id: string;
 };
