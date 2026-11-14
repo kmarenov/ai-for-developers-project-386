@@ -19,6 +19,19 @@ mise run dev
 
 `mise run dev` запускает оба сервиса в фоне и завершается; управление — `mise daemons status|logs|stop`. Порт backend переопределяется через `PORT`, разрешённый origin — через `CORS_ALLOWED_ORIGIN`. Подробности по командам и структуре — в [AGENTS.md](AGENTS.md).
 
+### 🎭 E2E-тесты
+
+```bash
+mise run e2e:install   # один раз: скачать chromium
+mise run test:e2e      # E2E на настоящих backend и frontend
+```
+
+- Playwright сам поднимает backend на `:8091` и frontend на `:5191` и гасит их после прогона, поэтому `mise run dev` на `:8081`/`:5173` можно не останавливать. `reuseExistingServer: false` гарантирует чистый in-memory backend на каждый прогон.
+- `mise run check` запускает `hk check --all` и `mise run test:e2e`; `mise run check:fast` — только быстрые проверки без браузеров, её использует pre-commit.
+- Конфиг — `playwright.config.ts` в корне, сценарии и фикстуры — `e2e/`. Прогон последовательный (`workers: 1`, только chromium), с обязательным `globalTimeout`.
+- Отчёты и артефакты попадают в `playwright-report/` и `test-results/` и не коммитятся. В CI job `check` ставит chromium с системными зависимостями и складывает `playwright-report/` артефактом.
+- Тесты ходят в настоящий API без моков; нужные данные готовятся через API в самих сценариях.
+
 ## 🛠 Технологический стек
 
 ### Backend
@@ -62,7 +75,18 @@ mise run dev
 | **Валидация**           | Zod                 | Проверка пользовательского ввода        |
 | **Тестирование**        | Vitest + Playwright | Модульные и E2E-тесты                   |
 
-`date-fns`, React Hook Form, Zod и Playwright указаны как целевой стек и подключаются на следующих шагах. В каркасе уже работают React, Vite, React Router, shadcn/ui, Tailwind CSS, Lucide, Orval, TanStack Query и Vitest.
+`date-fns`, React Hook Form и Zod указаны как целевой стек и подключаются на следующих шагах. В каркасе уже работают React, Vite, React Router, shadcn/ui, Tailwind CSS, Lucide, Orval, TanStack Query, Vitest и Playwright (E2E).
+
+## 🚢 Релизы
+
+Релизы ведёт [release-please](https://github.com/googleapis/release-please) в manifest-режиме: workflow `.github/workflows/release-please.yml` запускается по `push` в `main`, конфиг — `release-please-config.json`, текущие версии — `.release-please-manifest.json`. Пакетов два: `frontend` (`release-type: node`, версия в `frontend/package.json`) и `backend` (`release-type: go`, только `backend/CHANGELOG.md`). `spec/` отдельно не версионируется и уезжает вместе с `frontend`.
+
+- Стартовая версия — `0.0.0`, поэтому первый `feat` даёт `0.1.0` (`bump-minor-pre-major`); `fix`/`perf` дают patch.
+- Теги: `frontend-vX.Y.Z` и `backend/vX.Y.Z` — слэш у Go нужен, чтобы тег работал как тег подмодуля (`tag-separator: "/"`).
+- Один релизный PR `chore: release main` обновляет оба пакета и манифест.
+- Заголовки PR при squash-мерже должны быть conventional: в `main` попадает именно заголовок PR, и release-please парсит его как коммит.
+
+Чтобы workflow мог создавать PR, в настройках репозитория должно быть включено **Settings → Actions → General → Workflow permissions → Allow GitHub Actions to create and approve pull requests**. Без этой опции запуск падает на создании релизного PR.
 
 ## ⚠️ Ограничения и правила работы
 

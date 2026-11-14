@@ -8,6 +8,8 @@ steps {
     exclude = List(
       "spec/openapi.yaml",
       "frontend/src/api/generated/**",
+      "frontend/CHANGELOG.md",
+      "backend/CHANGELOG.md",
       "pnpm-lock.yaml",
       ".mise/locks/**",
       ".github/workflows/hexlet-check.yml",
@@ -26,6 +28,10 @@ steps {
   ["typecheck"] {
     glob = List("frontend/**/*.ts", "frontend/**/*.tsx")
     check = "pnpm --dir frontend typecheck"
+  }
+  ["typecheck-e2e"] {
+    glob = List("e2e/**/*.ts", "playwright.config.ts")
+    check = "pnpm --dir frontend exec tsc -p ../tsconfig.e2e.json"
   }
   ["test"] {
     check = "mise run test"

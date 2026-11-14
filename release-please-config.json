@@ -1,0 +1,16 @@
+{
+  "$schema": "https://raw.githubusercontent.com/googleapis/release-please/main/schemas/config.json",
+  "bump-minor-pre-major": true,
+  "separate-pull-requests": false,
+  "packages": {
+    "frontend": {
+      "release-type": "node",
+      "component": "frontend"
+    },
+    "backend": {
+      "release-type": "go",
+      "component": "backend",
+      "tag-separator": "/"
+    }
+  }
+}
