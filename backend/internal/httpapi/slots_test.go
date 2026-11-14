@@ -2,6 +2,7 @@ package httpapi_test
 
 import (
 	"encoding/json"
+	"errors"
 	"io"
 	"log/slog"
 	"net/http"
@@ -10,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/kmarenov/ai-for-developers-project-386/backend/internal/booking"
 	"github.com/kmarenov/ai-for-developers-project-386/backend/internal/httpapi"
 	"github.com/kmarenov/ai-for-developers-project-386/backend/internal/meetingtype"
 	"github.com/kmarenov/ai-for-developers-project-386/backend/internal/timerules"
@@ -31,11 +33,19 @@ type bookedIntervals []bookingRecord
 
 func (b bookedIntervals) Busy() []timerules.Interval {
 	intervals := make([]timerules.Interval, len(b))
-	for index, booking := range b {
-		intervals[index] = booking.interval
+	for index, item := range b {
+		intervals[index] = item.interval
 	}
 
 	return intervals
+}
+
+func (b bookedIntervals) List() ([]booking.Booking, error) {
+	return nil, nil
+}
+
+func (b bookedIntervals) Create(booking.CreateInput, booking.ValidateSlot) (booking.Booking, error) {
+	return booking.Booking{}, errors.New("bookedIntervals cannot create bookings")
 }
 
 type timeSlot struct {
@@ -239,7 +249,7 @@ func TestAvailableSlotsExcludeSlotsOccupiedByAnotherMeetingType(t *testing.T) {
 	server := newTestServerWith(t, httpapi.Deps{
 		MeetingTypes: store,
 		TimeRules:    rules,
-		Busy:         bookings,
+		Bookings:     bookings,
 		Now:          func() time.Time { return testNow },
 	})
 

@@ -2,9 +2,10 @@
 package meetingtype
 
 import (
-	"crypto/rand"
 	"fmt"
 	"sync"
+
+	"github.com/kmarenov/ai-for-developers-project-386/backend/internal/uuid"
 )
 
 // MeetingType is a published reason for a call.
@@ -45,7 +46,7 @@ func (s *Store) List() ([]MeetingType, error) {
 
 // Create appends a meeting type with a server-generated UUID v4.
 func (s *Store) Create(input CreateInput) (MeetingType, error) {
-	id, err := newUUID()
+	id, err := uuid.New()
 	if err != nil {
 		return MeetingType{}, fmt.Errorf("generate meeting type id: %w", err)
 	}
@@ -62,17 +63,4 @@ func (s *Store) Create(input CreateInput) (MeetingType, error) {
 	s.items = append(s.items, meetingType)
 
 	return meetingType, nil
-}
-
-func newUUID() (string, error) {
-	var bytes [16]byte
-	if _, err := rand.Read(bytes[:]); err != nil {
-		return "", fmt.Errorf("read random bytes: %w", err)
-	}
-
-	// RFC 9562 version 4 and variant bits.
-	bytes[6] = (bytes[6] & 0x0f) | 0x40
-	bytes[8] = (bytes[8] & 0x3f) | 0x80
-
-	return fmt.Sprintf("%x-%x-%x-%x-%x", bytes[0:4], bytes[4:6], bytes[6:8], bytes[8:10], bytes[10:16]), nil
 }

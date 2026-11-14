@@ -171,6 +171,38 @@ func (r Rules) Slots(now time.Time, durationMinutes int, busy []Interval) []Slot
 	return slots
 }
 
+// IsBookableStart reports whether a meeting of durationMinutes may start at
+// start, judged only by the calendar rules: the start must be strictly after
+// now, inside the booking window, on a working day, on the start grid and the
+// whole meeting must fit into working hours. Occupancy is checked separately
+// with Overlaps.
+func (r Rules) IsBookableStart(now, start time.Time, durationMinutes int) bool {
+	if durationMinutes <= 0 || !start.After(now) {
+		return false
+	}
+
+	duration := time.Duration(durationMinutes) * time.Minute
+	local := start.In(r.location)
+	day := time.Date(local.Year(), local.Month(), local.Day(), 0, 0, 0, 0, r.location)
+
+	today := r.Today(now)
+	lastDay := today.AddDate(0, 0, r.config.BookingWindowDays-1)
+	if day.Before(today) || day.After(lastDay) {
+		return false
+	}
+
+	if weekday := day.Weekday(); weekday == time.Saturday || weekday == time.Sunday {
+		return false
+	}
+
+	offset := local.Sub(day.Add(r.workStart))
+	if offset < 0 || offset%r.step != 0 {
+		return false
+	}
+
+	return !local.Add(duration).After(day.Add(r.workEnd))
+}
+
 // Overlaps reports whether two half-open intervals intersect. Back-to-back
 // intervals do not overlap.
 func Overlaps(startA, endA, startB, endB time.Time) bool {

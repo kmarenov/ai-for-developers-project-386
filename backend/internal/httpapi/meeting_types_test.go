@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/kmarenov/ai-for-developers-project-386/backend/internal/booking"
 	"github.com/kmarenov/ai-for-developers-project-386/backend/internal/httpapi"
 	"github.com/kmarenov/ai-for-developers-project-386/backend/internal/meetingtype"
 	"github.com/kmarenov/ai-for-developers-project-386/backend/internal/timerules"
@@ -39,6 +40,7 @@ func newTestServer(t *testing.T, store httpapi.MeetingTypeStore) *httptest.Serve
 	return newTestServerWith(t, httpapi.Deps{
 		MeetingTypes: store,
 		TimeRules:    mustRules(t, timerules.DefaultConfig()),
+		Bookings:     booking.NewStore(),
 		Now:          func() time.Time { return testNow },
 	})
 }

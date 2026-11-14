@@ -12,6 +12,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/kmarenov/ai-for-developers-project-386/backend/internal/booking"
 	"github.com/kmarenov/ai-for-developers-project-386/backend/internal/meetingtype"
 	"github.com/kmarenov/ai-for-developers-project-386/backend/internal/timerules"
 )
@@ -26,10 +27,13 @@ type MeetingTypeStore interface {
 	Create(meetingtype.CreateInput) (meetingtype.MeetingType, error)
 }
 
-// BusyProvider returns a snapshot of the intervals occupied by bookings of
-// every meeting type. Occupancy is shared across meeting types.
-type BusyProvider interface {
+// BookingStore is the booking dependency of the HTTP layer. Busy serves the
+// available-slots read path, List the owner list and Create the booking write
+// path. Occupancy is shared across meeting types.
+type BookingStore interface {
 	Busy() []timerules.Interval
+	List() ([]booking.Booking, error)
+	Create(booking.CreateInput, booking.ValidateSlot) (booking.Booking, error)
 }
 
 // Deps are the explicit dependencies of the HTTP layer.
@@ -38,7 +42,7 @@ type Deps struct {
 	AllowedOrigin string
 	MeetingTypes  MeetingTypeStore
 	TimeRules     timerules.Rules
-	Busy          BusyProvider
+	Bookings      BookingStore
 	Now           func() time.Time
 }
 
@@ -46,7 +50,7 @@ type api struct {
 	logger       *slog.Logger
 	meetingTypes MeetingTypeStore
 	rules        timerules.Rules
-	busy         BusyProvider
+	bookings     BookingStore
 	now          func() time.Time
 }
 
@@ -64,7 +68,7 @@ func NewRouter(deps Deps) http.Handler {
 		logger:       logger,
 		meetingTypes: deps.MeetingTypes,
 		rules:        deps.TimeRules,
-		busy:         deps.Busy,
+		bookings:     deps.Bookings,
 		now:          now,
 	}
 
@@ -88,6 +92,12 @@ func NewRouter(deps Deps) http.Handler {
 	mux.HandleFunc("/available-slots", methodNotAllowedHandler(
 		map[string]http.HandlerFunc{
 			http.MethodGet: handler.handleListAvailableSlots,
+		},
+	))
+	mux.HandleFunc("/bookings", methodNotAllowedHandler(
+		map[string]http.HandlerFunc{
+			http.MethodGet:  handler.handleListBookings,
+			http.MethodPost: handler.handleCreateBooking,
 		},
 	))
 	mux.HandleFunc("/", handler.handleNotFound)
@@ -133,19 +143,11 @@ func (a *api) handleListAvailableSlots(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	meetingTypes, err := a.meetingTypes.List()
+	meetingType, err := a.findMeetingType(meetingTypeID)
 	if err != nil {
 		a.logger.Error("list meeting types for available slots", "error", err)
 		writeError(w, http.StatusInternalServerError, CodeInternalError, "Внутренняя ошибка сервера")
 		return
-	}
-
-	var meetingType *meetingtype.MeetingType
-	for index := range meetingTypes {
-		if meetingTypes[index].ID == meetingTypeID {
-			meetingType = &meetingTypes[index]
-			break
-		}
 	}
 	if meetingType == nil {
 		writeError(w, http.StatusNotFound, CodeMeetingTypeNotFound, "Тип встречи не найден")
@@ -153,8 +155,8 @@ func (a *api) handleListAvailableSlots(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var busy []timerules.Interval
-	if a.busy != nil {
-		busy = a.busy.Busy()
+	if a.bookings != nil {
+		busy = a.bookings.Busy()
 	}
 
 	slots := a.rules.Slots(a.now(), meetingType.DurationMinutes, busy)
@@ -195,7 +197,7 @@ type createMeetingTypeRequest struct {
 }
 
 func (a *api) handleCreateMeetingType(w http.ResponseWriter, r *http.Request) {
-	request, ok := decodeCreateMeetingTypeRequest(w, r)
+	request, ok := decodeJSONBody[createMeetingTypeRequest](w, r)
 	if !ok {
 		writeError(w, http.StatusBadRequest, CodeInvalidRequest, "Некорректные данные типа встречи")
 		return
@@ -217,20 +219,20 @@ func (a *api) handleCreateMeetingType(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusCreated, meetingType)
 }
 
-func decodeCreateMeetingTypeRequest(w http.ResponseWriter, r *http.Request) (createMeetingTypeRequest, bool) {
-	var request createMeetingTypeRequest
+func decodeJSONBody[T any](w http.ResponseWriter, r *http.Request) (T, bool) {
+	var body T
 
 	decoder := json.NewDecoder(http.MaxBytesReader(w, r.Body, maxRequestBodyBytes))
-	if err := decoder.Decode(&request); err != nil {
-		return createMeetingTypeRequest{}, false
+	if err := decoder.Decode(&body); err != nil {
+		return body, false
 	}
 
 	// Reject trailing JSON values while still allowing trailing whitespace.
 	if err := decoder.Decode(&struct{}{}); !errors.Is(err, io.EOF) {
-		return createMeetingTypeRequest{}, false
+		return body, false
 	}
 
-	return request, true
+	return body, true
 }
 
 func validateCreateMeetingTypeRequest(request createMeetingTypeRequest) (meetingtype.CreateInput, bool) {
@@ -256,6 +258,157 @@ func validateCreateMeetingTypeRequest(request createMeetingTypeRequest) (meeting
 		Title:           title,
 		Description:     description,
 		DurationMinutes: duration,
+	}, true
+}
+
+type createBookingRequest struct {
+	MeetingTypeID *string `json:"meeting_type_id"`
+	StartTime     *string `json:"start_time"`
+	GuestName     *string `json:"guest_name"`
+	GuestEmail    *string `json:"guest_email"`
+}
+
+var emailPattern = regexp.MustCompile(`^[^@\s]+@[^@\s]+\.[^@\s]+$`)
+
+func (a *api) handleCreateBooking(w http.ResponseWriter, r *http.Request) {
+	request, ok := decodeJSONBody[createBookingRequest](w, r)
+	if !ok {
+		writeError(w, http.StatusBadRequest, CodeInvalidRequest, "Некорректные данные брони")
+		return
+	}
+
+	input, ok := validateCreateBookingRequest(request)
+	if !ok {
+		writeError(w, http.StatusBadRequest, CodeInvalidRequest, "Некорректные данные брони")
+		return
+	}
+
+	meetingType, err := a.findMeetingType(input.MeetingTypeID)
+	if err != nil {
+		a.logger.Error("list meeting types for booking", "error", err)
+		writeError(w, http.StatusInternalServerError, CodeInternalError, "Внутренняя ошибка сервера")
+		return
+	}
+	if meetingType == nil {
+		writeError(w, http.StatusNotFound, CodeMeetingTypeNotFound, "Тип встречи не найден")
+		return
+	}
+
+	if a.bookings == nil {
+		a.logger.Error("create booking without a booking store")
+		writeError(w, http.StatusInternalServerError, CodeInternalError, "Внутренняя ошибка сервера")
+		return
+	}
+
+	now := a.now()
+	rules := a.rules
+	input.DurationMinutes = meetingType.DurationMinutes
+
+	// The store calls this validator inside its write lock, so the calendar
+	// rules and the occupancy snapshot are checked together with the insert.
+	validate := func(start, end time.Time, busy []timerules.Interval) error {
+		if !rules.IsBookableStart(now, start, meetingType.DurationMinutes) {
+			return booking.ErrInvalidSlot
+		}
+		for _, interval := range busy {
+			if timerules.Overlaps(start, end, interval.Start, interval.End) {
+				return booking.ErrSlotTaken
+			}
+		}
+
+		return nil
+	}
+
+	created, err := a.bookings.Create(input, validate)
+	switch {
+	case errors.Is(err, booking.ErrInvalidSlot):
+		writeError(w, http.StatusBadRequest, CodeInvalidSlot, "Этот слот недоступен")
+	case errors.Is(err, booking.ErrSlotTaken):
+		writeError(w, http.StatusConflict, CodeSlotTaken, "Это время уже занято")
+	case err != nil:
+		a.logger.Error("create booking", "error", err)
+		writeError(w, http.StatusInternalServerError, CodeInternalError, "Внутренняя ошибка сервера")
+	default:
+		writeJSON(w, http.StatusCreated, created)
+	}
+}
+
+func (a *api) handleListBookings(w http.ResponseWriter, _ *http.Request) {
+	if a.bookings == nil {
+		a.logger.Error("list bookings without a booking store")
+		writeError(w, http.StatusInternalServerError, CodeInternalError, "Внутренняя ошибка сервера")
+		return
+	}
+
+	stored, err := a.bookings.List()
+	if err != nil {
+		a.logger.Error("list bookings", "error", err)
+		writeError(w, http.StatusInternalServerError, CodeInternalError, "Внутренняя ошибка сервера")
+		return
+	}
+
+	now := a.now()
+	upcoming := make([]booking.Booking, 0, len(stored))
+	for _, item := range stored {
+		if item.EndTime.After(now) {
+			upcoming = append(upcoming, item)
+		}
+	}
+
+	slices.SortStableFunc(upcoming, func(left, right booking.Booking) int {
+		return left.StartTime.Compare(right.StartTime)
+	})
+
+	writeJSON(w, http.StatusOK, upcoming)
+}
+
+func (a *api) findMeetingType(id string) (*meetingtype.MeetingType, error) {
+	meetingTypes, err := a.meetingTypes.List()
+	if err != nil {
+		return nil, err
+	}
+
+	for index := range meetingTypes {
+		if meetingTypes[index].ID == id {
+			return &meetingTypes[index], nil
+		}
+	}
+
+	return nil, nil
+}
+
+type createBookingInput = booking.CreateInput
+
+func validateCreateBookingRequest(request createBookingRequest) (createBookingInput, bool) {
+	if request.MeetingTypeID == nil || request.StartTime == nil || request.GuestName == nil || request.GuestEmail == nil {
+		return createBookingInput{}, false
+	}
+
+	meetingTypeID := strings.TrimSpace(*request.MeetingTypeID)
+	if !uuidPattern.MatchString(meetingTypeID) {
+		return createBookingInput{}, false
+	}
+
+	startTime, err := time.Parse(time.RFC3339, *request.StartTime)
+	if err != nil {
+		return createBookingInput{}, false
+	}
+
+	guestName := strings.TrimSpace(*request.GuestName)
+	if utf8.RuneCountInString(guestName) < 1 || utf8.RuneCountInString(guestName) > 100 {
+		return createBookingInput{}, false
+	}
+
+	guestEmail := strings.ToLower(strings.TrimSpace(*request.GuestEmail))
+	if utf8.RuneCountInString(guestEmail) > 254 || !emailPattern.MatchString(guestEmail) {
+		return createBookingInput{}, false
+	}
+
+	return createBookingInput{
+		MeetingTypeID: meetingTypeID,
+		StartTime:     startTime.UTC(),
+		GuestName:     guestName,
+		GuestEmail:    guestEmail,
 	}, true
 }
 
