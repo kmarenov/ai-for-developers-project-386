@@ -14,6 +14,7 @@
 ## Layout
 
 - `spec/` — TypeSpec contract. Flow is `main.tsp` -> `spec/openapi.yaml` -> Orval client; never hand-edit `openapi.yaml` or `frontend/src/api/generated/`.
+- No TypeSpec emitter targets Go standard-library HTTP servers, so the backend is written by hand against the contract; API tests assert status codes and `ErrorResponse` bodies. Adding a server generator requires an ADR first.
 - `backend/` — Go stdlib API. `cmd/server/main.go` is the entrypoint, `internal/httpapi` the router, `internal/config` env config. Env: `PORT` (default `8081`), `CORS_ALLOWED_ORIGIN` (default `http://localhost:5173`).
 - `frontend/` — React + TypeScript + Vite. Routes in `src/App.tsx`, pages in `src/pages`, shadcn components in `src/components/ui` (vendor code, excluded from oxlint).
 - `mise.toml` — pinned tools, tasks, daemons, postinstall hook. `mise.lock` and the `.mise/locks/` sidecars pin every platform and npm tool graph; commit them together. `hk.pkl` is the shared formatter/linter/test and Git-hook config.

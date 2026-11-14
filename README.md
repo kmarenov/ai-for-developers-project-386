@@ -73,7 +73,7 @@ mise run dev
   - Пересечение интервалов строго запрещено (включая частичное наложение разных типов встреч).
   - Следующая встреча может начаться ровно в момент окончания предыдущей.
   - Защита от состояния гонки (race condition): правила пересечения интервалов действуют и для двух запросов, пришедших одновременно (реализуется через `sync.Mutex` на бэкенде).
-  - Рабочие часы и часовой пояс задаются в спецификации (например, 09:00–18:00, Asia/Yekaterinburg).
+  - Рабочие часы — 09:00–18:00, часовой пояс владельца — Europe/Moscow.
   - Шаг доступных стартов фиксируется в спецификации (например, каждые 15 минут).
   - Длительность слота совпадает с длительностью выбранного типа встречи.
 
@@ -108,18 +108,59 @@ mise run dev
 
 **Основные модели:**
 
+- `HealthResponse`: `status`.
+- `ConfigResponse`: `timezone`, `working_hours_start`, `working_hours_end`, `slot_step_minutes`, `booking_window_days`, `today`.
 - `MeetingType`: `id`, `title`, `description`, `duration_minutes`.
-- `TimeSlot`: `start_time`, `end_time`, `is_available`.
+- `CreateMeetingTypeRequest`: `title`, `description`, `duration_minutes` (без `id`).
+- `TimeSlot`: `start_time`, `end_time` — только свободные слоты, без `is_available`.
 - `Booking`: `id`, `meeting_type_id`, `start_time`, `end_time`, `guest_name`, `guest_email`.
-
-**Конфигурация (константы):**
-
-- `timezone`, `working_hours_start`, `working_hours_end`, `slot_step_minutes`, `booking_window_days`.
+- `CreateBookingRequest`: `meeting_type_id`, `start_time`, `guest_name`, `guest_email` (без `end_time`).
+- `ErrorResponse`: `{code, message}`; `code` — закрытый union: `invalid_request`, `invalid_slot`, `meeting_type_not_found`, `slot_taken`, `not_found`, `method_not_allowed`, `internal_error`.
 
 **Основные эндпоинты:**
 
-- `GET /meeting-types` — получение списка типов встреч.
-- `POST /meeting-types` — создание нового типа (для владельца).
-- `GET /available-slots?typeId={id}&date={YYYY-MM-DD}` — получение массива свободных слотов на выбранный день.
-- `POST /bookings` — создание бронирования (с серверной валидацией пересечений).
-- `GET /bookings` — получение списка всех предстоящих записей (для владельца).
+| Метод  | Путь                                      | Успех | Ошибки                                                                                           |
+| :----- | :---------------------------------------- | :---- | :----------------------------------------------------------------------------------------------- |
+| `GET`  | `/health`                                 | `200` | `500`                                                                                            |
+| `GET`  | `/config`                                 | `200` | `500`                                                                                            |
+| `GET`  | `/meeting-types`                          | `200` | `500`                                                                                            |
+| `POST` | `/meeting-types`                          | `201` | `400 invalid_request`, `500`                                                                     |
+| `GET`  | `/available-slots?meeting_type_id={uuid}` | `200` | `400 invalid_request`, `404 meeting_type_not_found`, `500`                                       |
+| `GET`  | `/bookings`                               | `200` | `500`                                                                                            |
+| `POST` | `/bookings`                               | `201` | `400 invalid_request`, `404 meeting_type_not_found`, `400 invalid_slot`, `409 slot_taken`, `500` |
+
+### 🧪 curl-демо каталога
+
+После `mise run dev` (на свежем сервере стор в памяти пуст):
+
+```bash
+# 1. Пустой список типов встреч
+curl -s http://localhost:8081/meeting-types
+# []
+
+# 2. Создание типа встречи: title тримится, сервер выдаёт UUID v4
+curl -s -X POST http://localhost:8081/meeting-types \
+  -H 'Content-Type: application/json' \
+  -d '{"title":"  Встреча 30 минут  ","description":"Обсудим проект","duration_minutes":30}'
+# {"id":"<uuid-v4>","title":"Встреча 30 минут","description":"Обсудим проект","duration_minutes":30}
+
+# 3. Список с созданным типом
+curl -s http://localhost:8081/meeting-types
+
+# 4. Ошибка валидации — 400 invalid_request
+curl -s -w '\n%{http_code}\n' -X POST http://localhost:8081/meeting-types \
+  -H 'Content-Type: application/json' \
+  -d '{"title":"","description":"","duration_minutes":4}'
+# {"code":"invalid_request","message":"Некорректные данные типа встречи"}
+# 400
+
+# 5. Неподдерживаемый метод — 405 method_not_allowed
+curl -s -w '\n%{http_code}\n' -X PUT http://localhost:8081/meeting-types
+# {"code":"method_not_allowed","message":"Метод не поддерживается"}
+# 405
+
+# 6. Неизвестный путь — 404 not_found
+curl -s -w '\n%{http_code}\n' http://localhost:8081/unknown
+# {"code":"not_found","message":"Ресурс не найден"}
+# 404
+```
