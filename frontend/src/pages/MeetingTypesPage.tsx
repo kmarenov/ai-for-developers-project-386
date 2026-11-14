@@ -51,19 +51,21 @@ function MeetingTypesList({ meetingTypes }: MeetingTypesListProps) {
     <ul className="space-y-4">
       {meetingTypes.map((meetingType) => (
         <li key={meetingType.id}>
-          <article aria-labelledby={`meeting-type-${meetingType.id}`}>
-            <Card>
-              <CardHeader>
-                <CardTitle id={`meeting-type-${meetingType.id}`}>{meetingType.title}</CardTitle>
-                {meetingType.description !== "" ? (
-                  <CardDescription>{meetingType.description}</CardDescription>
-                ) : null}
-              </CardHeader>
-              <CardContent>
-                <p className="font-medium">{meetingType.duration_minutes} минут</p>
-              </CardContent>
-            </Card>
-          </article>
+          <Link to={`/meeting-types/${meetingType.id}`} className="block">
+            <article aria-labelledby={`meeting-type-${meetingType.id}`}>
+              <Card className="transition-colors hover:bg-muted/40">
+                <CardHeader>
+                  <CardTitle id={`meeting-type-${meetingType.id}`}>{meetingType.title}</CardTitle>
+                  {meetingType.description !== "" ? (
+                    <CardDescription>{meetingType.description}</CardDescription>
+                  ) : null}
+                </CardHeader>
+                <CardContent>
+                  <p className="font-medium">{meetingType.duration_minutes} минут</p>
+                </CardContent>
+              </Card>
+            </article>
+          </Link>
         </li>
       ))}
     </ul>

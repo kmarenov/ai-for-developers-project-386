@@ -4,15 +4,16 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
-	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"regexp"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/kmarenov/ai-for-developers-project-386/backend/internal/httpapi"
 	"github.com/kmarenov/ai-for-developers-project-386/backend/internal/meetingtype"
+	"github.com/kmarenov/ai-for-developers-project-386/backend/internal/timerules"
 )
 
 var uuidV4Pattern = regexp.MustCompile(`^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$`)
@@ -35,11 +36,11 @@ func (failingStore) Create(meetingtype.CreateInput) (meetingtype.MeetingType, er
 func newTestServer(t *testing.T, store httpapi.MeetingTypeStore) *httptest.Server {
 	t.Helper()
 
-	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	server := httptest.NewServer(httpapi.NewRouter(logger, "http://localhost:5173", store))
-	t.Cleanup(server.Close)
-
-	return server
+	return newTestServerWith(t, httpapi.Deps{
+		MeetingTypes: store,
+		TimeRules:    mustRules(t, timerules.DefaultConfig()),
+		Now:          func() time.Time { return testNow },
+	})
 }
 
 func doRequest(t *testing.T, server *httptest.Server, method, path, body string) (*http.Response, []byte) {
