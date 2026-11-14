@@ -15,6 +15,7 @@ export default defineConfig({
   server: {
     proxy: {
       "/health": "http://localhost:8081",
+      "/config": "http://localhost:8081",
       "/meeting-types": "http://localhost:8081",
       "/available-slots": "http://localhost:8081",
       "/bookings": "http://localhost:8081",
