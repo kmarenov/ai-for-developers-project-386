@@ -13,9 +13,9 @@ sequence and the pitfalls that already cost a debugging session.
   is `8080`, the image default is also `8080`).
 - Healthcheck: `GET /health`.
 
-The project also contains an older service `web` from the first deployment.
-`web-main` is canonical; do not point documentation at `web`. Delete `web`
-only after explicit user confirmation.
+`web-main` is the only application service. If a deployment creates a
+duplicate service, keep one canonical service and delete the extra one only
+after explicit user confirmation.
 
 ## Prerequisites
 
