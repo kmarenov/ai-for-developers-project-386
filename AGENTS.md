@@ -21,9 +21,10 @@
 ## Rules
 
 - **Conventional Commits are mandatory:** `<type>(<scope>): <description>`. Allowed types: `build`, `chore`, `ci`, `docs`, `feat`, `fix`, `perf`, `refactor`, `revert`, `style`, `test`. The `hk` commit-msg hook enforces this.
+- **Every implementation commit references its ticket:** end the subject with the ticket number in parentheses, e.g. `feat: запись на свободный слот (#12)`. GitHub turns the number into a link, so the history shows which commit closed which ticket. The ticket is closed after the integration branch is merged.
 - Do not edit, delete, move, or rename `.github/workflows/hexlet-check.yml`; do not rename the repository. Hexlet runs its own checks on every push.
 - Backend stays standard-library-first and in-memory (no database). Booking overlap must be mutex-protected; back-to-back slots are allowed. The 14-day window, working hours/timezone, slot step, and slot duration follow the README and contract.
-- Change the API only by editing TypeSpec and running `mise run codegen`. Use the generated TanStack Query hooks rather than duplicating request/response types.
+- Generated artifacts are `spec/openapi.yaml`, `frontend/src/api/generated/**`, and any server artifacts emitted by a generator. Never edit them by hand. Change `spec/main.tsp` (or `orval.config.ts`) and run `mise run codegen`; CI re-runs codegen and fails on any diff, including new files. Use the generated TanStack Query hooks rather than duplicating request/response types.
 - Frontend imports use the `@/` alias to `frontend/src`; Vite proxies API paths to `http://localhost:8081`.
 
 ## Agent skills
