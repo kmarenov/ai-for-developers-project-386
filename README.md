@@ -64,6 +64,17 @@ mise run dev
 
 `date-fns`, React Hook Form, Zod и Playwright указаны как целевой стек и подключаются на следующих шагах. В каркасе уже работают React, Vite, React Router, shadcn/ui, Tailwind CSS, Lucide, Orval, TanStack Query и Vitest.
 
+## 🚢 Релизы
+
+Релизы ведёт [release-please](https://github.com/googleapis/release-please) в manifest-режиме: workflow `.github/workflows/release-please.yml` запускается по `push` в `main`, конфиг — `release-please-config.json`, текущие версии — `.release-please-manifest.json`. Пакетов два: `frontend` (`release-type: node`, версия в `frontend/package.json`) и `backend` (`release-type: go`, только `backend/CHANGELOG.md`). `spec/` отдельно не версионируется и уезжает вместе с `frontend`.
+
+- Стартовая версия — `0.0.0`, поэтому первый `feat` даёт `0.1.0` (`bump-minor-pre-major`); `fix`/`perf` дают patch.
+- Теги: `frontend-vX.Y.Z` и `backend/vX.Y.Z` — слэш у Go нужен, чтобы тег работал как тег подмодуля (`tag-separator: "/"`).
+- Один релизный PR `chore: release main` обновляет оба пакета и манифест.
+- Заголовки PR при squash-мерже должны быть conventional: в `main` попадает именно заголовок PR, и release-please парсит его как коммит.
+
+Чтобы workflow мог создавать PR, в настройках репозитория должно быть включено **Settings → Actions → General → Workflow permissions → Allow GitHub Actions to create and approve pull requests**. Без этой опции запуск падает на создании релизного PR.
+
 ## ⚠️ Ограничения и правила работы
 
 - **Хранение данных:** База данных не используется. Все данные (типы встреч и бронирования) хранятся в памяти. **При перезапуске сервера все записи сбрасываются.**
