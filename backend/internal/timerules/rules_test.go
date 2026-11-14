@@ -262,6 +262,39 @@ func TestOverlaps(t *testing.T) {
 	}
 }
 
+func TestOverlapsAny(t *testing.T) {
+	base := time.Date(2026, time.November, 16, 10, 0, 0, 0, time.UTC)
+	busy := []timerules.Interval{
+		{Start: base, End: base.Add(30 * time.Minute)},
+		{Start: base.Add(2 * time.Hour), End: base.Add(3 * time.Hour)},
+	}
+
+	tests := []struct {
+		name  string
+		start time.Time
+		end   time.Time
+		want  bool
+	}{
+		{name: "overlaps the first busy interval", start: base.Add(15 * time.Minute), end: base.Add(45 * time.Minute), want: true},
+		{name: "adjacent to the first busy interval", start: base.Add(30 * time.Minute), end: base.Add(60 * time.Minute), want: false},
+		{name: "overlaps the second busy interval", start: base.Add(2*time.Hour + 30*time.Minute), end: base.Add(3*time.Hour + 30*time.Minute), want: true},
+		{name: "between busy intervals", start: base.Add(time.Hour), end: base.Add(90 * time.Minute), want: false},
+		{name: "empty busy list", start: base, end: base.Add(30 * time.Minute), want: false},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			intervals := busy
+			if test.name == "empty busy list" {
+				intervals = nil
+			}
+			if got := timerules.OverlapsAny(test.start, test.end, intervals); got != test.want {
+				t.Fatalf("OverlapsAny = %t, want %t", got, test.want)
+			}
+		})
+	}
+}
+
 func TestConfigValidation(t *testing.T) {
 	tests := []struct {
 		name    string

@@ -149,6 +149,14 @@ function submissionError(status: number, code: string) {
   });
 }
 
+function expectAboveSubmitButton(alert: HTMLElement) {
+  const submit = screen.getByRole("button", { name: "Записаться" });
+  const emailInput = screen.getByLabelText("Email");
+
+  expect(alert.compareDocumentPosition(submit) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  expect(emailInput.compareDocumentPosition(alert) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+}
+
 describe("BookingPage", () => {
   beforeEach(() => {
     mockedUseCreateBooking.mockReset();
@@ -168,6 +176,7 @@ describe("BookingPage", () => {
     expect(screen.getByRole("heading", { name: "Встреча 30 минут" })).toBeInTheDocument();
     expect(screen.getByText("30 минут")).toBeInTheDocument();
     expect(screen.getByText("Время указано по Москве (МСК).")).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "К каталогу встреч" })).toBeNull();
 
     const days = screen.getAllByRole("button", { name: /ноября/ });
     expect(days).toHaveLength(14);
@@ -178,6 +187,14 @@ describe("BookingPage", () => {
     expect(screen.getByRole("button", { name: "вт, 17 ноября" })).toBeEnabled();
     expect(screen.getByRole("button", { name: "ср, 18 ноября" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "пт, 27 ноября" })).toBeDisabled();
+  });
+
+  it("caches the config for five minutes and revalidates it on window focus", () => {
+    renderPage();
+
+    expect(mockedUseGetConfig).toHaveBeenCalledWith({
+      query: { staleTime: 5 * 60 * 1000, refetchOnWindowFocus: "always" },
+    });
   });
 
   it("shows the empty-day state for a day without slots", () => {
@@ -254,6 +271,19 @@ describe("BookingPage", () => {
       "href",
       "/meeting-types",
     );
+  });
+
+  it("does not treat a 404 with another code as a missing meeting type", () => {
+    const error = Object.assign(new Error("not found"), {
+      status: 404,
+      info: { code: "not_found", message: "not found" },
+    });
+    mockSlots(undefined, { data: undefined, isError: true, error });
+
+    renderPage();
+
+    expect(screen.getByRole("alert")).toHaveTextContent("Не удалось загрузить расписание");
+    expect(screen.queryByText("Тип встречи недоступен")).toBeNull();
   });
 
   it("reveals the guest form after the first slot selection", async () => {
@@ -374,6 +404,7 @@ describe("BookingPage", () => {
     expect(alert).toHaveTextContent("Это время только что заняли");
     expect(alert).toHaveTextContent("Выберите другой слот — список уже обновлён.");
     expect(alert).toHaveFocus();
+    expectAboveSubmitButton(alert);
 
     expect(slotsRefetch).toHaveBeenCalledTimes(1);
     expect(configRefetch).not.toHaveBeenCalled();
@@ -412,6 +443,7 @@ describe("BookingPage", () => {
     expect(alert).toHaveTextContent("Это время больше недоступно");
     expect(alert).toHaveTextContent("Расписание обновилось. Выберите другой слот.");
     expect(alert).toHaveFocus();
+    expectAboveSubmitButton(alert);
 
     expect(slotsRefetch).toHaveBeenCalledTimes(1);
     expect(configRefetch).toHaveBeenCalledTimes(1);
@@ -432,6 +464,7 @@ describe("BookingPage", () => {
     const alert = await screen.findByRole("alert");
     expect(alert).toHaveTextContent("Проверьте данные");
     expect(alert).toHaveTextContent("Не удалось отправить форму. Проверьте имя и email.");
+    expectAboveSubmitButton(alert);
     expect(screen.getByLabelText("Имя")).toHaveValue("Иван Петров");
     expect(screen.getByLabelText("Email")).toHaveValue("Guest@Example.com");
     expect(screen.getByRole("button", { name: "09:00" })).toHaveAttribute("aria-pressed", "true");
@@ -488,5 +521,21 @@ describe("BookingPage", () => {
     await user.click(screen.getByRole("button", { name: "Записаться" }));
 
     expect(await screen.findByText("Тип встречи недоступен")).toBeInTheDocument();
+  });
+
+  it("maps a submission 404 by code, not by status", async () => {
+    const user = userEvent.setup();
+    const { mutateAsync } = mockCreateBooking();
+    mutateAsync.mockRejectedValue(submissionError(404, "not_found"));
+
+    renderPage();
+    await selectSlot(user);
+    await fillForm(user);
+
+    await user.click(screen.getByRole("button", { name: "Записаться" }));
+
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent("Что-то пошло не так");
+    expect(screen.queryByText("Тип встречи недоступен")).toBeNull();
   });
 });
