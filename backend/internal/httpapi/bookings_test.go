@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/http/httptest"
 	"strings"
 	"sync"
 	"testing"
@@ -483,6 +484,81 @@ func TestListBookingsReturnsUpcomingSortedByStart(t *testing.T) {
 	if len(listed) != 1 || !listed[0].StartTime.Equal(later) {
 		t.Fatalf("upcoming bookings = %+v, want only the later one", listed)
 	}
+}
+
+func TestListBookingsUsesStrictEndTimeBoundary(t *testing.T) {
+	store := meetingtype.NewStore()
+	meetingType := createMeetingTypeInStore(t, store, 30)
+	now := testNow
+	var nowMu sync.Mutex
+	server := newTestServerWith(t, httpapi.Deps{
+		MeetingTypes: store,
+		Bookings:     booking.NewStore(),
+		TimeRules:    mustRules(t, timerules.DefaultConfig()),
+		Now: func() time.Time {
+			nowMu.Lock()
+			defer nowMu.Unlock()
+
+			return now
+		},
+	})
+
+	finished := moscowTime(t, time.November, 16, 9, 0)
+	ongoing := moscowTime(t, time.November, 16, 10, 0)
+	later := moscowTime(t, time.November, 16, 11, 0)
+
+	for _, start := range []time.Time{finished, ongoing, later} {
+		response, payload := doRequest(t, server, http.MethodPost, "/bookings",
+			bookingRequestBody(meetingType.ID, start, "Иван", "guest@example.com"),
+		)
+		if response.StatusCode != http.StatusCreated {
+			t.Fatalf("booking %s status = %d, want %d; body = %s", start, response.StatusCode, http.StatusCreated, payload)
+		}
+	}
+
+	setNow := func(moment time.Time) {
+		nowMu.Lock()
+		now = moment
+		nowMu.Unlock()
+	}
+
+	// A booking whose end equals now is over: the response keeps only the
+	// meetings that end strictly after now.
+	setNow(finished.Add(30 * time.Minute))
+	listed := listBookings(t, server)
+	if len(listed) != 2 || !listed[0].StartTime.Equal(ongoing) || !listed[1].StartTime.Equal(later) {
+		t.Fatalf("at the end boundary listed = %+v, want the two later meetings", listed)
+	}
+
+	// A meeting that has started but not ended stays in the list.
+	setNow(ongoing.Add(15 * time.Minute))
+	listed = listBookings(t, server)
+	if len(listed) != 2 || !listed[0].StartTime.Equal(ongoing) || !listed[1].StartTime.Equal(later) {
+		t.Fatalf("during the meeting listed = %+v, want the ongoing and the later meeting", listed)
+	}
+
+	// Crossing the end boundary of the ongoing meeting removes it as well.
+	setNow(ongoing.Add(30 * time.Minute))
+	listed = listBookings(t, server)
+	if len(listed) != 1 || !listed[0].StartTime.Equal(later) {
+		t.Fatalf("after the end boundary listed = %+v, want only the later meeting", listed)
+	}
+}
+
+func listBookings(t *testing.T, server *httptest.Server) []booking.Booking {
+	t.Helper()
+
+	response, payload := doRequest(t, server, http.MethodGet, "/bookings", "")
+	if response.StatusCode != http.StatusOK {
+		t.Fatalf("list status = %d, want %d; body = %s", response.StatusCode, http.StatusOK, payload)
+	}
+
+	var listed []booking.Booking
+	if err := json.Unmarshal(payload, &listed); err != nil {
+		t.Fatalf("decode bookings %q: %v", payload, err)
+	}
+
+	return listed
 }
 
 func TestBookingsMethodNotAllowed(t *testing.T) {
