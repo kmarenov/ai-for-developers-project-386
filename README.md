@@ -32,6 +32,15 @@ mise run test:e2e      # E2E на настоящих backend и frontend
 - Отчёты и артефакты попадают в `playwright-report/` и `test-results/` и не коммитятся. В CI job `check` ставит chromium с системными зависимостями и складывает `playwright-report/` артефактом.
 - Тесты ходят в настоящий API без моков; нужные данные готовятся через API в самих сценариях.
 
+### 🐳 Docker
+
+```bash
+mise run build:docker
+docker run --rm -p 8080:8080 -e PORT=8080 calendar-slot-code:local
+```
+
+Полноценный образ собирает SPA и Go API в один контейнер: nginx отдаёт фронтенд и проксирует API на внутренний `:8081`, наружу смотрит `$PORT` (по умолчанию `8080`). Этот же `Dockerfile` использует hexlet-check.
+
 ## 🛠 Технологический стек
 
 ### Backend
@@ -81,7 +90,7 @@ mise run test:e2e      # E2E на настоящих backend и frontend
 
 Релизы ведёт [release-please](https://github.com/googleapis/release-please) в manifest-режиме: workflow `.github/workflows/release-please.yml` запускается по `push` в `main`, конфиг — `release-please-config.json`, текущие версии — `.release-please-manifest.json`. Пакетов два: `frontend` (`release-type: node`, версия в `frontend/package.json`) и `backend` (`release-type: go`, только `backend/CHANGELOG.md`). `spec/` отдельно не версионируется и уезжает вместе с `frontend`.
 
-- Стартовая версия — `0.0.0`, поэтому первый `feat` даёт `0.1.0` (`bump-minor-pre-major`); `fix`/`perf` дают patch.
+- Текущая версия — `1.0.0`. При манифесте `0.0.0` release-please-action v5 выпустил `1.0.0`; чтобы начать с `0.1.0`, задайте `initial-version` до первого релиза. Дальше `feat` двигает minor, `fix`/`perf` — patch.
 - Теги: `frontend-vX.Y.Z` и `backend/vX.Y.Z` — слэш у Go нужен, чтобы тег работал как тег подмодуля (`tag-separator: "/"`).
 - Один релизный PR `chore: release main` обновляет оба пакета и манифест.
 - Заголовки PR при squash-мерже должны быть conventional: в `main` попадает именно заголовок PR, и release-please парсит его как коммит.

@@ -13,6 +13,7 @@
 - Focused runs: `mise run lint`, `mise run typecheck`, `mise run test`, `mise run build`.
 - Single test: `cd backend && go test ./internal/httpapi -run TestHealthEndpoint`; `pnpm --dir frontend test -- src/App.test.tsx`; `pnpm exec playwright test e2e/smoke.spec.ts`.
 - `mise run codegen` — after editing `spec/main.tsp`, regenerate `spec/openapi.yaml` and the Orval client in `frontend/src/api/generated/`.
+- `mise run build:docker` — build the full-stack image that hexlet-check runs; see the Docker layout below.
 
 ## Layout
 
@@ -21,17 +22,19 @@
 - `backend/` — Go stdlib API. `cmd/server/main.go` is the entrypoint, `internal/httpapi` the router, `internal/config` env config. Env: `PORT` (default `8081`), `CORS_ALLOWED_ORIGIN` (default `http://localhost:5173`).
 - `frontend/` — React + TypeScript + Vite. Routes in `src/App.tsx`, pages in `src/pages`, shadcn components in `src/components/ui` (vendor code, excluded from oxlint).
 - `playwright.config.ts` — E2E config at the repo root. `webServer` starts backend and frontend on `:8091`/`:5191`; tests live in `e2e/`, artifacts in `playwright-report/` and `test-results/` (both gitignored). `tsconfig.e2e.json` type-checks the E2E sources.
+- `Dockerfile` and `docker/` — full-stack image used by hexlet-check: nginx serves the SPA and proxies the Go API on `$PORT` (default `8080`). Build it with `mise run build:docker`; run it locally with `docker run --rm -p 8080:8080 -e PORT=8080 calendar-slot-code:local`.
 - `mise.toml` — pinned tools, tasks, daemons, postinstall hook. `mise.lock` and the `.mise/locks/` sidecars pin every platform and npm tool graph; commit them together. `hk.pkl` is the shared formatter/linter/test and Git-hook config.
 
 ## Rules
 
 - **Conventional Commits are mandatory:** `<type>(<scope>): <description>`. Allowed types: `build`, `chore`, `ci`, `docs`, `feat`, `fix`, `perf`, `refactor`, `revert`, `style`, `test`. The `hk` commit-msg hook enforces this.
 - **Every implementation commit references its ticket:** end the subject with the ticket number in parentheses, e.g. `feat: запись на свободный слот (#12)`. GitHub turns the number into a link, so the history shows which commit closed which ticket. The ticket is closed after the integration branch is merged.
+- **Merge commits follow the same ticket rule:** use `chore: merge ... (#N)` as the merge subject; do not keep git's default `Merge branch ...` message.
 - Do not edit, delete, move, or rename `.github/workflows/hexlet-check.yml`; do not rename the repository. Hexlet runs its own checks on every push.
 - Backend stays standard-library-first and in-memory (no database). Booking overlap must be mutex-protected; back-to-back slots are allowed. The 14-day window, working hours/timezone, slot step, and slot duration follow the README and contract.
 - Generated artifacts are `spec/openapi.yaml`, `frontend/src/api/generated/**`, and any server artifacts emitted by a generator. Never edit them by hand. Change `spec/main.tsp` (or `orval.config.ts`) and run `mise run codegen`; CI re-runs codegen and fails on any diff, including new files. Use the generated TanStack Query hooks rather than duplicating request/response types.
 - Frontend imports use the `@/` alias to `frontend/src`; Vite proxies API paths to `http://localhost:8081`.
-- E2E runs against the real server on isolated ports: no API route mocking, seed data through the API. Keep `workers: 1`, chromium-only, and an explicit `globalTimeout` in `playwright.config.ts`. The pre-commit hook must never require browsers; run E2E only through `mise run check`/`mise run test:e2e`.
+- E2E runs against the real server on isolated ports: no API route mocking, seed data through the API. Keep `workers: 1`, chromium-only, and an explicit `globalTimeout` in `playwright.config.ts`. The pre-commit hook must never require browsers; run E2E only through `mise run check`/`mise run test:e2e`. Each test seeds its own data and never assumes an empty store; smoke covers direct document navigation and reload for SPA routes that collide with API prefixes (`/meeting-types`).
 
 ## Agent skills
 
@@ -46,3 +49,7 @@ Default five canonical roles: `needs-triage`, `needs-info`, `ready-for-agent`, `
 ### Domain docs
 
 Single-context: one `GLOSSARY.md` at the repo root plus `docs/adr/`. See `docs/agents/domain.md`.
+
+### Review standards
+
+Judgement calls for the review agent (config values tested away from defaults, generated contract types, shared rules, E2E data ownership, docs updates): see `CODING_STANDARDS.md`.

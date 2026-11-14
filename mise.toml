@@ -35,6 +35,10 @@ run = "pnpm codegen"
 description = "Build backend and frontend"
 run = ["cd backend && go build ./...", "pnpm --dir frontend build"]
 
+[tasks."build:docker"]
+description = "Build the full-stack container used by hexlet-check"
+run = "docker build -t calendar-slot-code:local ."
+
 [tasks.lint]
 description = "Run formatting and lint checks"
 run = "hk check --all --skip-step test --skip-step typecheck"
