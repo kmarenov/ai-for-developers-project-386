@@ -378,3 +378,45 @@ func TestConfigValidation(t *testing.T) {
 		})
 	}
 }
+
+func TestIsBookableStart(t *testing.T) {
+	rules := newRules(t, timerules.DefaultConfig())
+	location := rules.Location()
+
+	// Saturday 03:00 in Moscow: the window is [2026-11-14, 2026-11-27].
+	now := time.Date(2026, time.November, 14, 0, 0, 0, 0, time.UTC)
+	at := func(day, hour, minute int) time.Time {
+		return time.Date(2026, time.November, day, hour, minute, 0, 0, location)
+	}
+
+	tests := []struct {
+		name            string
+		start           time.Time
+		durationMinutes int
+		want            bool
+	}{
+		{name: "monday 09:00 on the grid", start: at(16, 9, 0), durationMinutes: 30, want: true},
+		{name: "monday 09:15 on the grid", start: at(16, 9, 15), durationMinutes: 30, want: true},
+		{name: "monday 10:00 on the grid", start: at(16, 10, 0), durationMinutes: 60, want: true},
+		{name: "starts in the past", start: at(13, 9, 0), durationMinutes: 30, want: false},
+		{name: "today at now is not strictly after now", start: now.In(location), durationMinutes: 30, want: false},
+		{name: "after the booking window", start: at(28, 9, 0), durationMinutes: 30, want: false},
+		{name: "saturday has no slots", start: at(21, 9, 0), durationMinutes: 30, want: false},
+		{name: "sunday has no slots", start: at(22, 9, 0), durationMinutes: 30, want: false},
+		{name: "before working hours", start: at(16, 8, 45), durationMinutes: 30, want: false},
+		{name: "off the grid", start: at(16, 9, 5), durationMinutes: 30, want: false},
+		{name: "start at 18:00 does not fit", start: at(16, 18, 0), durationMinutes: 30, want: false},
+		{name: "last valid start of the day", start: at(16, 17, 30), durationMinutes: 30, want: true},
+		{name: "duration crosses working hours end", start: at(16, 17, 30), durationMinutes: 60, want: false},
+		{name: "zero duration", start: at(16, 10, 0), durationMinutes: 0, want: false},
+		{name: "duration longer than the working day", start: at(16, 9, 0), durationMinutes: 600, want: false},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			if got := rules.IsBookableStart(now, test.start, test.durationMinutes); got != test.want {
+				t.Fatalf("IsBookableStart(%s, %dm) = %t, want %t", test.start.Format(time.RFC3339), test.durationMinutes, got, test.want)
+			}
+		})
+	}
+}

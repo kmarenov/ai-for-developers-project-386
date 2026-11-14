@@ -10,6 +10,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/kmarenov/ai-for-developers-project-386/backend/internal/booking"
 	"github.com/kmarenov/ai-for-developers-project-386/backend/internal/config"
 	"github.com/kmarenov/ai-for-developers-project-386/backend/internal/httpapi"
 	"github.com/kmarenov/ai-for-developers-project-386/backend/internal/meetingtype"
@@ -33,6 +34,7 @@ func main() {
 			AllowedOrigin: cfg.AllowedOrigin,
 			MeetingTypes:  meetingtype.NewStore(),
 			TimeRules:     timeRules,
+			Bookings:      booking.NewStore(),
 			Now:           time.Now,
 		}),
 		ReadHeaderTimeout: 5 * time.Second,

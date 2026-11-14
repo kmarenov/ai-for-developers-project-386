@@ -3,18 +3,25 @@ import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { useGetConfig, useListAvailableSlots, useListMeetingTypes } from "@/api/generated/calendar";
+import {
+  useCreateBooking,
+  useGetConfig,
+  useListAvailableSlots,
+  useListMeetingTypes,
+} from "@/api/generated/calendar";
 import type { ConfigResponse, MeetingType, TimeSlot } from "@/api/generated/model";
 import { App } from "@/App";
 import { MeetingTypesPage } from "@/pages/MeetingTypesPage";
 
 vi.mock("@/api/generated/calendar", () => ({
+  useCreateBooking: vi.fn(),
   useGetConfig: vi.fn(),
   useListAvailableSlots: vi.fn(),
   useListMeetingTypes: vi.fn(),
 }));
 
 const mockedUseListMeetingTypes = vi.mocked(useListMeetingTypes);
+const mockedUseCreateBooking = vi.mocked(useCreateBooking);
 const mockedUseGetConfig = vi.mocked(useGetConfig);
 const mockedUseListAvailableSlots = vi.mocked(useListAvailableSlots);
 
@@ -61,6 +68,7 @@ const config: ConfigResponse = {
 
 describe("MeetingTypesPage", () => {
   beforeEach(() => {
+    mockedUseCreateBooking.mockReset();
     mockedUseListMeetingTypes.mockReset();
     mockedUseGetConfig.mockReset();
     mockedUseListAvailableSlots.mockReset();
@@ -71,6 +79,10 @@ describe("MeetingTypesPage", () => {
     mockedUseListAvailableSlots.mockReturnValue(
       queryResult([] as TimeSlot[]) as unknown as ReturnType<typeof useListAvailableSlots>,
     );
+    mockedUseCreateBooking.mockReturnValue({
+      mutateAsync: vi.fn(),
+      isPending: false,
+    } as unknown as ReturnType<typeof useCreateBooking>);
   });
 
   it("shows a loading state while the catalog is fetched", () => {
