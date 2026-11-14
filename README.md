@@ -3,7 +3,7 @@
 «Календарь звонков» — это упрощённый сервис бронирования времени по мотивам Cal.com.
 Владелец календаря (один, задан заранее) настраивает типы встреч и просматривает расписание. Гость без регистрации выбирает тип встречи и бронирует свободный слот.
 
-**Публичный демо-стенд:** [https://web-production-199c7d5e.up.railway.app](https://web-production-199c7d5e.up.railway.app)
+**Публичный демо-стенд:** [https://web-main-production-bb7a7b4d.up.railway.app](https://web-main-production-bb7a7b4d.up.railway.app)
 
 ## 🚀 Запуск и проверки
 
@@ -47,7 +47,7 @@ docker run --rm -p 8080:8080 -e PORT=8080 calendar-slot-code:local
 
 Стенд развёрнут на [Railway](https://railway.com/) из этого репозитория:
 
-- **Публичный URL:** https://web-production-199c7d5e.up.railway.app
+- **Публичный URL:** https://web-main-production-bb7a7b4d.up.railway.app
 - **Сборка:** корневой `Dockerfile`; Railway не использует собственный билдер.
 - **Порт:** платформа передаёт `PORT`, приложение слушает его. Локально значение по умолчанию — `8080`.
 - **Healthcheck:** `GET /health`.
@@ -56,8 +56,8 @@ docker run --rm -p 8080:8080 -e PORT=8080 calendar-slot-code:local
 Проверить стенд:
 
 ```bash
-curl -fsS https://web-production-199c7d5e.up.railway.app/health
-curl -fsS https://web-production-199c7d5e.up.railway.app/config
+curl -fsS https://web-main-production-bb7a7b4d.up.railway.app/health
+curl -fsS https://web-main-production-bb7a7b4d.up.railway.app/config
 ```
 
 ### 🔌 MCP для деплоя
@@ -92,7 +92,7 @@ OAuth-токены хранятся в данных OpenCode вне репози
 После деплоя создайте демо-тип встречи заново:
 
 ```bash
-curl -fsS -X POST https://web-production-199c7d5e.up.railway.app/meeting-types \
+curl -fsS -X POST https://web-main-production-bb7a7b4d.up.railway.app/meeting-types \
   -H 'Content-Type: application/json' \
   -d '{"title":"Демо-встреча 30 минут","description":"Проверка публичного стенда","duration_minutes":30}'
 ```
