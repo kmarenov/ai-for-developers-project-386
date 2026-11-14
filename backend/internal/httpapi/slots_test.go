@@ -22,10 +22,20 @@ var testNow = time.Date(2026, time.November, 14, 0, 0, 0, 0, time.UTC)
 // bookedIntervals is the booking-store seam for the HTTP layer: it returns the
 // occupied half-open intervals of every meeting type. Bookings themselves
 // arrive in a later ticket.
-type bookedIntervals []timerules.Interval
+type bookingRecord struct {
+	meetingTypeID string
+	interval      timerules.Interval
+}
+
+type bookedIntervals []bookingRecord
 
 func (b bookedIntervals) Busy() []timerules.Interval {
-	return b
+	intervals := make([]timerules.Interval, len(b))
+	for index, booking := range b {
+		intervals[index] = booking.interval
+	}
+
+	return intervals
 }
 
 type timeSlot struct {
@@ -63,6 +73,21 @@ func createMeetingType(t *testing.T, server *httptest.Server, durationMinutes in
 	}
 
 	return decodeMeetingType(t, payload)
+}
+
+func createMeetingTypeInStore(t *testing.T, store *meetingtype.Store, durationMinutes int) meetingtype.MeetingType {
+	t.Helper()
+
+	meetingType, err := store.Create(meetingtype.CreateInput{
+		Title:           "Встреча",
+		Description:     "",
+		DurationMinutes: durationMinutes,
+	})
+	if err != nil {
+		t.Fatalf("create meeting type in store: %v", err)
+	}
+
+	return meetingType
 }
 
 func TestGetConfigReturnsOwnerTimeRules(t *testing.T) {
@@ -199,11 +224,17 @@ func TestAvailableSlotsExcludeSlotsOccupiedByAnotherMeetingType(t *testing.T) {
 	store := meetingtype.NewStore()
 	rules := mustRules(t, timerules.DefaultConfig())
 
+	requested := createMeetingTypeInStore(t, store, 30)
+	other := createMeetingTypeInStore(t, store, 15)
+
 	occupiedStart := time.Date(2026, time.November, 16, 6, 0, 0, 0, time.UTC) // Monday 09:00 MSK
 	occupiedEnd := occupiedStart.Add(30 * time.Minute)
 
 	// The occupied interval belongs to a booking of a different meeting type.
-	bookings := bookedIntervals{{Start: occupiedStart, End: occupiedEnd}}
+	bookings := bookedIntervals{{
+		meetingTypeID: other.ID,
+		interval:      timerules.Interval{Start: occupiedStart, End: occupiedEnd},
+	}}
 
 	server := newTestServerWith(t, httpapi.Deps{
 		MeetingTypes: store,
@@ -211,9 +242,6 @@ func TestAvailableSlotsExcludeSlotsOccupiedByAnotherMeetingType(t *testing.T) {
 		Busy:         bookings,
 		Now:          func() time.Time { return testNow },
 	})
-
-	requested := createMeetingType(t, server, 30)
-	createMeetingType(t, server, 15)
 
 	response, payload := doRequest(t, server, http.MethodGet, "/available-slots?meeting_type_id="+requested.ID, "")
 	if response.StatusCode != http.StatusOK {
