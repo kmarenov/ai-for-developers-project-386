@@ -6,14 +6,19 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"regexp"
+	"slices"
 	"strings"
 	"time"
 	"unicode/utf8"
 
 	"github.com/kmarenov/ai-for-developers-project-386/backend/internal/meetingtype"
+	"github.com/kmarenov/ai-for-developers-project-386/backend/internal/timerules"
 )
 
 const maxRequestBodyBytes = 1 << 20
+
+var uuidPattern = regexp.MustCompile(`^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$`)
 
 // MeetingTypeStore is the catalog dependency required by the HTTP layer.
 type MeetingTypeStore interface {
@@ -21,15 +26,46 @@ type MeetingTypeStore interface {
 	Create(meetingtype.CreateInput) (meetingtype.MeetingType, error)
 }
 
+// BusyProvider returns a snapshot of the intervals occupied by bookings of
+// every meeting type. Occupancy is shared across meeting types.
+type BusyProvider interface {
+	Busy() []timerules.Interval
+}
+
+// Deps are the explicit dependencies of the HTTP layer.
+type Deps struct {
+	Logger        *slog.Logger
+	AllowedOrigin string
+	MeetingTypes  MeetingTypeStore
+	TimeRules     timerules.Rules
+	Busy          BusyProvider
+	Now           func() time.Time
+}
+
 type api struct {
 	logger       *slog.Logger
 	meetingTypes MeetingTypeStore
+	rules        timerules.Rules
+	busy         BusyProvider
+	now          func() time.Time
 }
 
-func NewRouter(logger *slog.Logger, allowedOrigin string, meetingTypes MeetingTypeStore) http.Handler {
+func NewRouter(deps Deps) http.Handler {
+	logger := deps.Logger
+	if logger == nil {
+		logger = slog.Default()
+	}
+	now := deps.Now
+	if now == nil {
+		now = time.Now
+	}
+
 	handler := &api{
 		logger:       logger,
-		meetingTypes: meetingTypes,
+		meetingTypes: deps.MeetingTypes,
+		rules:        deps.TimeRules,
+		busy:         deps.Busy,
+		now:          now,
 	}
 
 	mux := http.NewServeMux()
@@ -38,19 +74,103 @@ func NewRouter(logger *slog.Logger, allowedOrigin string, meetingTypes MeetingTy
 			http.MethodGet: handler.handleHealth,
 		},
 	))
+	mux.HandleFunc("/config", methodNotAllowedHandler(
+		map[string]http.HandlerFunc{
+			http.MethodGet: handler.handleGetConfig,
+		},
+	))
 	mux.HandleFunc("/meeting-types", methodNotAllowedHandler(
 		map[string]http.HandlerFunc{
 			http.MethodGet:  handler.handleListMeetingTypes,
 			http.MethodPost: handler.handleCreateMeetingType,
 		},
 	))
+	mux.HandleFunc("/available-slots", methodNotAllowedHandler(
+		map[string]http.HandlerFunc{
+			http.MethodGet: handler.handleListAvailableSlots,
+		},
+	))
 	mux.HandleFunc("/", handler.handleNotFound)
 
-	return withCORS(allowedOrigin, withRequestLogging(logger, mux))
+	return withCORS(deps.AllowedOrigin, withRequestLogging(logger, mux))
 }
 
 func (a *api) handleHealth(w http.ResponseWriter, _ *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+}
+
+type configResponse struct {
+	Timezone          string `json:"timezone"`
+	WorkingHoursStart string `json:"working_hours_start"`
+	WorkingHoursEnd   string `json:"working_hours_end"`
+	SlotStepMinutes   int    `json:"slot_step_minutes"`
+	BookingWindowDays int    `json:"booking_window_days"`
+	Today             string `json:"today"`
+}
+
+func (a *api) handleGetConfig(w http.ResponseWriter, _ *http.Request) {
+	config := a.rules.Config()
+
+	writeJSON(w, http.StatusOK, configResponse{
+		Timezone:          config.Timezone,
+		WorkingHoursStart: config.WorkingHoursStart,
+		WorkingHoursEnd:   config.WorkingHoursEnd,
+		SlotStepMinutes:   config.SlotStepMinutes,
+		BookingWindowDays: config.BookingWindowDays,
+		Today:             a.rules.Today(a.now()).Format(time.DateOnly),
+	})
+}
+
+type timeSlotResponse struct {
+	StartTime time.Time `json:"start_time"`
+	EndTime   time.Time `json:"end_time"`
+}
+
+func (a *api) handleListAvailableSlots(w http.ResponseWriter, r *http.Request) {
+	meetingTypeID := r.URL.Query().Get("meeting_type_id")
+	if !uuidPattern.MatchString(meetingTypeID) {
+		writeError(w, http.StatusBadRequest, CodeInvalidRequest, "Некорректный идентификатор типа встречи")
+		return
+	}
+
+	meetingTypes, err := a.meetingTypes.List()
+	if err != nil {
+		a.logger.Error("list meeting types for available slots", "error", err)
+		writeError(w, http.StatusInternalServerError, CodeInternalError, "Внутренняя ошибка сервера")
+		return
+	}
+
+	var meetingType *meetingtype.MeetingType
+	for index := range meetingTypes {
+		if meetingTypes[index].ID == meetingTypeID {
+			meetingType = &meetingTypes[index]
+			break
+		}
+	}
+	if meetingType == nil {
+		writeError(w, http.StatusNotFound, CodeMeetingTypeNotFound, "Тип встречи не найден")
+		return
+	}
+
+	var busy []timerules.Interval
+	if a.busy != nil {
+		busy = a.busy.Busy()
+	}
+
+	slots := a.rules.Slots(a.now(), meetingType.DurationMinutes, busy)
+	slices.SortFunc(slots, func(left, right timerules.Slot) int {
+		return left.Start.Compare(right.Start)
+	})
+
+	response := make([]timeSlotResponse, len(slots))
+	for index, slot := range slots {
+		response[index] = timeSlotResponse{
+			StartTime: slot.Start.UTC(),
+			EndTime:   slot.End.UTC(),
+		}
+	}
+
+	writeJSON(w, http.StatusOK, response)
 }
 
 func (a *api) handleNotFound(w http.ResponseWriter, _ *http.Request) {

@@ -2,20 +2,14 @@ package httpapi_test
 
 import (
 	"encoding/json"
-	"io"
-	"log/slog"
 	"net/http"
-	"net/http/httptest"
 	"testing"
 
-	"github.com/kmarenov/ai-for-developers-project-386/backend/internal/httpapi"
 	"github.com/kmarenov/ai-for-developers-project-386/backend/internal/meetingtype"
 )
 
 func TestHealthEndpoint(t *testing.T) {
-	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	server := httptest.NewServer(httpapi.NewRouter(logger, "http://localhost:5173", meetingtype.NewStore()))
-	t.Cleanup(server.Close)
+	server := newTestServer(t, meetingtype.NewStore())
 
 	response, err := server.Client().Get(server.URL + "/health")
 	if err != nil {
