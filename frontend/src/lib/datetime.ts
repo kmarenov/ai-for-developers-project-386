@@ -38,3 +38,23 @@ export function timezoneCaption(timezone: string): string {
 
   return `Время указано по ${timezone}.`;
 }
+
+/** Short owner timezone label: Europe/Moscow → МСК, anything else stays IANA. */
+export function timezoneAbbreviation(timezone: string): string {
+  if (timezone === "Europe/Moscow") {
+    return "МСК";
+  }
+
+  return timezone;
+}
+
+/** Formats a booking interval as «10 ноября, 09:00–09:30 (МСК)». */
+export function formatBookingRange(startTime: string, endTime: string, timezone: string): string {
+  const start = new TZDate(startTime, timezone);
+  const end = new TZDate(endTime, timezone);
+
+  return `${format(start, "d MMMM", { locale: ru })}, ${format(start, "HH:mm")}–${format(
+    end,
+    "HH:mm",
+  )} (${timezoneAbbreviation(timezone)})`;
+}
