@@ -5,14 +5,20 @@
   "scripts": {
     "build": "mise run build",
     "check": "mise run check",
+    "check:fast": "mise run check:fast",
     "codegen": "pnpm --dir spec compile && orval",
     "dev": "mise run dev",
+    "e2e:install": "mise run e2e:install",
     "lint": "mise run lint",
     "test": "mise run test",
+    "test:e2e": "mise run test:e2e",
     "typecheck": "mise run typecheck"
   },
   "devDependencies": {
-    "orval": "^8.47.0"
+    "@playwright/test": "^1.65.1",
+    "@types/node": "^24.19.2",
+    "orval": "^8.47.0",
+    "typescript": "~7.0.2"
   },
   "engines": {
     "node": ">=24"

@@ -27,6 +27,10 @@ steps {
     glob = List("frontend/**/*.ts", "frontend/**/*.tsx")
     check = "pnpm --dir frontend typecheck"
   }
+  ["typecheck-e2e"] {
+    glob = List("e2e/**/*.ts", "playwright.config.ts")
+    check = "pnpm exec tsc -p tsconfig.e2e.json"
+  }
   ["test"] {
     check = "mise run test"
   }
