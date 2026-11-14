@@ -250,7 +250,7 @@ func validateCreateMeetingTypeRequest(request createMeetingTypeRequest) (meeting
 	if utf8.RuneCountInString(description) > 500 {
 		return meetingtype.CreateInput{}, false
 	}
-	if duration < 5 || duration > 480 {
+	if duration < timerules.MinMeetingDurationMinutes || duration > timerules.MaxMeetingDurationMinutes {
 		return meetingtype.CreateInput{}, false
 	}
 
@@ -310,10 +310,8 @@ func (a *api) handleCreateBooking(w http.ResponseWriter, r *http.Request) {
 		if !rules.IsBookableStart(now, start, meetingType.DurationMinutes) {
 			return booking.ErrInvalidSlot
 		}
-		for _, interval := range busy {
-			if timerules.Overlaps(start, end, interval.Start, interval.End) {
-				return booking.ErrSlotTaken
-			}
+		if timerules.OverlapsAny(start, end, busy) {
+			return booking.ErrSlotTaken
 		}
 
 		return nil

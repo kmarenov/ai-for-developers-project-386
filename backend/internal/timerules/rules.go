@@ -21,6 +21,7 @@ const (
 	WorkingHoursEnd           = "18:00"
 	SlotStepMinutes           = 15
 	BookingWindowDays         = 14
+	MinMeetingDurationMinutes = 5
 	MaxMeetingDurationMinutes = 480
 )
 
@@ -160,7 +161,7 @@ func (r Rules) Slots(now time.Time, durationMinutes int, busy []Interval) []Slot
 			if !start.After(now) {
 				continue
 			}
-			if overlapsAny(start, end, busy) {
+			if OverlapsAny(start, end, busy) {
 				continue
 			}
 
@@ -175,7 +176,7 @@ func (r Rules) Slots(now time.Time, durationMinutes int, busy []Interval) []Slot
 // start, judged only by the calendar rules: the start must be strictly after
 // now, inside the booking window, on a working day, on the start grid and the
 // whole meeting must fit into working hours. Occupancy is checked separately
-// with Overlaps.
+// with OverlapsAny.
 func (r Rules) IsBookableStart(now, start time.Time, durationMinutes int) bool {
 	if durationMinutes <= 0 || !start.After(now) {
 		return false
@@ -209,7 +210,10 @@ func Overlaps(startA, endA, startB, endB time.Time) bool {
 	return startB.Before(endA) && startA.Before(endB)
 }
 
-func overlapsAny(start, end time.Time, busy []Interval) bool {
+// OverlapsAny reports whether the half-open interval [start, end) intersects
+// any occupied interval. It is the single occupancy predicate shared by slot
+// generation and booking creation so the two rules cannot diverge.
+func OverlapsAny(start, end time.Time, busy []Interval) bool {
 	for _, interval := range busy {
 		if Overlaps(start, end, interval.Start, interval.End) {
 			return true

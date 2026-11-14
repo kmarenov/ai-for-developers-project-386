@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"regexp"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -213,8 +214,8 @@ func TestCreateMeetingTypeValidation(t *testing.T) {
 		{name: "missing description", body: `{"title":"Звонок","duration_minutes":30}`},
 		{name: "description too long", body: `{"title":"Звонок","description":"` + tooLongDescription + `","duration_minutes":30}`},
 		{name: "missing duration", body: `{"title":"Звонок","description":""}`},
-		{name: "duration too small", body: `{"title":"Звонок","description":"","duration_minutes":4}`},
-		{name: "duration too large", body: `{"title":"Звонок","description":"","duration_minutes":481}`},
+		{name: "duration too small", body: `{"title":"Звонок","description":"","duration_minutes":` + strconv.Itoa(timerules.MinMeetingDurationMinutes-1) + `}`},
+		{name: "duration too large", body: `{"title":"Звонок","description":"","duration_minutes":` + strconv.Itoa(timerules.MaxMeetingDurationMinutes+1) + `}`},
 		{name: "duration is a string", body: `{"title":"Звонок","description":"","duration_minutes":"30"}`},
 		{name: "duration is fractional", body: `{"title":"Звонок","description":"","duration_minutes":30.5}`},
 		{name: "body too large", body: oversizedBody},
@@ -238,11 +239,11 @@ func TestCreateMeetingTypeAcceptsBoundaryValues(t *testing.T) {
 	}{
 		{
 			name: "minimum boundaries",
-			body: `{"title":"` + strings.Repeat("я", 100) + `","description":"","duration_minutes":5}`,
+			body: `{"title":"` + strings.Repeat("я", 100) + `","description":"","duration_minutes":` + strconv.Itoa(timerules.MinMeetingDurationMinutes) + `}`,
 		},
 		{
 			name: "maximum boundaries",
-			body: `{"title":"Звонок","description":"` + strings.Repeat("я", 500) + `","duration_minutes":480}`,
+			body: `{"title":"Звонок","description":"` + strings.Repeat("я", 500) + `","duration_minutes":` + strconv.Itoa(timerules.MaxMeetingDurationMinutes) + `}`,
 		},
 	}
 
