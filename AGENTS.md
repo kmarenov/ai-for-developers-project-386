@@ -7,6 +7,8 @@
 - `mise run dev` — start backend on `:8081` and frontend on `:5173` through mise daemons. The task returns while both keep running; use `mise daemons status|logs|stop`.
 - `mise run check` — all checks: `hk check --all` (format, oxlint, golangci-lint, jactionlint, typecheck, Go tests, Vitest) plus `mise run test:e2e`. CI runs this exact command.
 - `mise run check:fast` — the `hk check --all` part only; the `hk` pre-commit hook stays browser-free.
+- `mise run secrets` — scan the full Git history with gitleaks; CI runs it before the main check.
+- `mise run test:docker` — build the container and smoke-test it on `SMOKE_PORT` (default `18080`): `/health`, `/` and `/meeting-types`; run it after Docker, nginx or `PORT` changes.
 - `mise run e2e:install` — install the Playwright chromium browser (once per machine; separate from `mise install`).
 - `mise run test:e2e` — Playwright E2E; it starts the backend on `:8091` and the frontend on `:5191` itself (`reuseExistingServer: false`), so `mise run dev` can keep running. Extra args pass through: `mise run test:e2e -- --headed`.
 - CI triggers on `push` only. There is no `pull_request` trigger, so check the Actions run for the branch push rather than PR checks.
@@ -25,6 +27,8 @@
 - `Dockerfile` and `docker/` — full-stack image used by hexlet-check: nginx serves the SPA and proxies the Go API on `$PORT` (default `8080`). Build it with `mise run build:docker`; run it locally with `docker run --rm -p 8080:8080 -e PORT=8080 calendar-slot-code:local`.
 - `opencode.json` — project-level MCP config for the Railway remote server (`https://mcp.railway.com`). It carries no credentials: sign in through `/mcps` and keep OAuth tokens outside the repository.
 - `railway.json` — Railway build/deploy settings: root `Dockerfile`, `/health` healthcheck, no sleep. The service listens on the platform-provided `PORT`.
+- `docs/deploy.md` — deploy runbook: Railway MCP call order, `PORT`/target-port setup, known source-switch and auto-deploy limitations, reseed and acceptance commands.
+- `scripts/check-deploy-config.mjs` — validates the shape of `opencode.json` and `railway.json`; `hk` runs it when either file changes.
 - `mise.toml` — pinned tools, tasks, daemons, postinstall hook. `mise.lock` and the `.mise/locks/` sidecars pin every platform and npm tool graph; commit them together. `hk.pkl` is the shared formatter/linter/test and Git-hook config.
 
 ## Rules
@@ -37,7 +41,7 @@
 - Generated artifacts are `spec/openapi.yaml`, `frontend/src/api/generated/**`, and any server artifacts emitted by a generator. Never edit them by hand. Change `spec/main.tsp` (or `orval.config.ts`) and run `mise run codegen`; CI re-runs codegen and fails on any diff, including new files. Use the generated TanStack Query hooks rather than duplicating request/response types.
 - Frontend imports use the `@/` alias to `frontend/src`; Vite proxies API paths to `http://localhost:8081`.
 - E2E runs against the real server on isolated ports: no API route mocking, seed data through the API. Keep `workers: 1`, chromium-only, and an explicit `globalTimeout` in `playwright.config.ts`. The pre-commit hook must never require browsers; run E2E only through `mise run check`/`mise run test:e2e`. Each test seeds its own data and never assumes an empty store; smoke covers direct document navigation and reload for SPA routes that collide with API prefixes (`/meeting-types`).
-- Deploy goes through the Railway MCP configured in `opencode.json`; keep credentials in OAuth storage or environment variables, never in Git. The service builds the root `Dockerfile`, receives `PORT` from the platform, and exposes `/health`. Data stays in memory, so every restart or redeploy wipes meeting types and bookings; reseed the public stand through the API after a deploy.
+- Deploy, verify and reseed the Railway stand following `docs/deploy.md`; keep credentials in OAuth storage or environment variables, never in Git.
 
 ## Agent skills
 

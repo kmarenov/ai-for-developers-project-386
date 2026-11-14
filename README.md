@@ -38,8 +38,11 @@ mise run test:e2e      # E2E на настоящих backend и frontend
 
 ```bash
 mise run build:docker
+mise run test:docker
 docker run --rm -p 8080:8080 -e PORT=8080 calendar-slot-code:local
 ```
+
+`mise run test:docker` собирает образ, запускает его на нестандартном `SMOKE_PORT` (по умолчанию `18080`), проверяет `/health`, SPA и API, затем удаляет контейнер.
 
 Полноценный образ собирает SPA и Go API в один контейнер: nginx отдаёт фронтенд и проксирует API на внутренний `:8081`, наружу смотрит `$PORT` (по умолчанию `8080`). Этот же `Dockerfile` использует hexlet-check.
 
@@ -82,6 +85,8 @@ curl -fsS https://web-main-production-bb7a7b4d.up.railway.app/config
    Ожидается `railway connected`.
 
 4. Попросите агента выполнить деплой. Агент использует MCP-инструменты Railway: создание проекта и сервиса из GitHub-репозитория, настройка healthcheck, генерация домена, чтение логов и статуса.
+
+Точная последовательность MCP-вызовов, известные ограничения и команды приёмки — в [docs/deploy.md](docs/deploy.md).
 
 OAuth-токены хранятся в данных OpenCode вне репозитория. Файлы `.env` и `.env.*` исключены из Git; `.env.example` — безопасный шаблон на случай перехода на `RAILWAY_API_TOKEN` вместо OAuth.
 
