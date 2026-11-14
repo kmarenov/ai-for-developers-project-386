@@ -1,14 +1,13 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router";
 
-import { useListBookings, useListMeetingTypes } from "@/api/generated/calendar";
+import { useGetConfig, useListBookings, useListMeetingTypes } from "@/api/generated/calendar";
 import type { Booking, MeetingType } from "@/api/generated/model";
 import { SiteHeader } from "@/components/SiteHeader";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { formatDayHeading, formatTimeRange, slotDayKey, timezoneCaption } from "@/lib/datetime";
-
-const OWNER_TIMEZONE = "Europe/Moscow";
+import { formatDayHeading, formatTimeRange, groupByDay, timezoneCaption } from "@/lib/datetime";
+import { configQueryOptions } from "@/lib/queries";
 
 const bookingsQueryOptions = {
   query: {
@@ -19,16 +18,19 @@ const bookingsQueryOptions = {
 };
 
 export function AdminPage() {
+  const configQuery = useGetConfig(configQueryOptions);
   const bookingsQuery = useListBookings(bookingsQueryOptions);
   const meetingTypesQuery = useListMeetingTypes();
 
+  const config = configQuery.data?.data;
   const bookings = bookingsQuery.data?.data ?? [];
   const meetingTypes = meetingTypesQuery.data?.data ?? [];
-  const isLoading = bookingsQuery.isLoading || meetingTypesQuery.isLoading;
-  const isError = bookingsQuery.isError || meetingTypesQuery.isError;
+  const isLoading = configQuery.isLoading || bookingsQuery.isLoading || meetingTypesQuery.isLoading;
+  const isError = configQuery.isError || bookingsQuery.isError || meetingTypesQuery.isError;
   const now = useCurrentTime();
 
   const retry = () => {
+    void configQuery.refetch();
     void bookingsQuery.refetch();
     void meetingTypesQuery.refetch();
   };
@@ -40,15 +42,22 @@ export function AdminPage() {
       <main className="mx-auto w-full max-w-3xl flex-1 px-6 py-16">
         <header className="space-y-2">
           <h1 className="text-3xl font-semibold tracking-tight">Предстоящие встречи</h1>
-          <p className="text-muted-foreground">{timezoneCaption(OWNER_TIMEZONE)}</p>
+          {config !== undefined ? (
+            <p className="text-muted-foreground">{timezoneCaption(config.timezone)}</p>
+          ) : null}
         </header>
 
         <div className="mt-8" aria-live="polite">
           {isLoading ? <MeetingsLoading /> : null}
           {!isLoading && isError ? <MeetingsError onRetry={retry} /> : null}
           {!isLoading && !isError && bookings.length === 0 ? <MeetingsEmpty /> : null}
-          {!isLoading && !isError && bookings.length > 0 ? (
-            <MeetingsList bookings={bookings} meetingTypes={meetingTypes} now={now} />
+          {!isLoading && !isError && config !== undefined && bookings.length > 0 ? (
+            <MeetingsList
+              bookings={bookings}
+              meetingTypes={meetingTypes}
+              timezone={config.timezone}
+              now={now}
+            />
           ) : null}
         </div>
       </main>
@@ -72,29 +81,31 @@ function useCurrentTime() {
 type MeetingsListProps = {
   bookings: Booking[];
   meetingTypes: MeetingType[];
+  timezone: string;
   now: Date;
 };
 
-function MeetingsList({ bookings, meetingTypes, now }: MeetingsListProps) {
+function MeetingsList({ bookings, meetingTypes, timezone, now }: MeetingsListProps) {
   const meetingTypesByID = new Map(
     meetingTypes.map((meetingType) => [meetingType.id, meetingType]),
   );
-  const groups = groupBookingsByDay(bookings);
+  const groups = groupByDay(bookings, timezone, (booking) => booking.start_time);
 
   return (
     <div className="space-y-8">
       {groups.map((group) => (
         <section key={group.key} aria-labelledby={`admin-day-${group.key}`} className="space-y-3">
           <h2 id={`admin-day-${group.key}`} className="text-lg font-semibold tracking-tight">
-            {formatDayHeading(group.bookings[0].start_time, OWNER_TIMEZONE, now)}
+            {formatDayHeading(group.items[0].start_time, timezone, now)}
           </h2>
 
           <ul className="space-y-3">
-            {group.bookings.map((booking) => (
+            {group.items.map((booking) => (
               <li key={booking.id}>
                 <BookingRow
                   booking={booking}
                   meetingType={meetingTypesByID.get(booking.meeting_type_id)}
+                  timezone={timezone}
                   now={now}
                 />
               </li>
@@ -106,36 +117,14 @@ function MeetingsList({ bookings, meetingTypes, now }: MeetingsListProps) {
   );
 }
 
-type BookingDayGroup = {
-  key: string;
-  bookings: Booking[];
-};
-
-/** Groups bookings by owner-timezone day, keeping the order the server returned. */
-function groupBookingsByDay(bookings: Booking[]): BookingDayGroup[] {
-  const groups: BookingDayGroup[] = [];
-
-  for (const booking of bookings) {
-    const key = slotDayKey(booking.start_time, OWNER_TIMEZONE);
-    const current = groups.at(-1);
-
-    if (current?.key === key) {
-      current.bookings.push(booking);
-    } else {
-      groups.push({ key, bookings: [booking] });
-    }
-  }
-
-  return groups;
-}
-
 type BookingRowProps = {
   booking: Booking;
   meetingType: MeetingType | undefined;
+  timezone: string;
   now: Date;
 };
 
-function BookingRow({ booking, meetingType, now }: BookingRowProps) {
+function BookingRow({ booking, meetingType, timezone, now }: BookingRowProps) {
   const isOngoing =
     Date.parse(booking.start_time) <= now.getTime() && now.getTime() < Date.parse(booking.end_time);
 
@@ -168,7 +157,7 @@ function BookingRow({ booking, meetingType, now }: BookingRowProps) {
             </div>
 
             <p className="text-sm font-medium tabular-nums sm:text-base">
-              {formatTimeRange(booking.start_time, booking.end_time, OWNER_TIMEZONE)}
+              {formatTimeRange(booking.start_time, booking.end_time, timezone)}
             </p>
           </div>
 

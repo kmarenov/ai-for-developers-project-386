@@ -3,21 +3,32 @@ import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { useListBookings, useListMeetingTypes } from "@/api/generated/calendar";
-import type { Booking, MeetingType } from "@/api/generated/model";
+import { useGetConfig, useListBookings, useListMeetingTypes } from "@/api/generated/calendar";
+import type { Booking, ConfigResponse, MeetingType } from "@/api/generated/model";
 import { AdminPage } from "@/pages/AdminPage";
 
 vi.mock("@/api/generated/calendar", () => ({
+  useGetConfig: vi.fn(),
   useListBookings: vi.fn(),
   useListMeetingTypes: vi.fn(),
 }));
 
+const mockedUseGetConfig = vi.mocked(useGetConfig);
 const mockedUseListBookings = vi.mocked(useListBookings);
 const mockedUseListMeetingTypes = vi.mocked(useListMeetingTypes);
 
 // Monday 10 November 2025, 09:00 in Moscow. The tickets' day headers use the
 // same 2025 weekdays: пн 10, вт 11, ср 12 ноября.
 const now = new Date("2025-11-10T06:00:00.000Z");
+
+const config: ConfigResponse = {
+  timezone: "Europe/Moscow",
+  working_hours_start: "09:00",
+  working_hours_end: "18:00",
+  slot_step_minutes: 15,
+  booking_window_days: 14,
+  today: "2025-11-10",
+};
 
 const meetingTypes: MeetingType[] = [
   {
@@ -86,10 +97,18 @@ function renderPage() {
   );
 }
 
+function mockConfig(overrides: Record<string, unknown> = {}) {
+  mockedUseGetConfig.mockReturnValue({
+    ...queryResult(config),
+    ...overrides,
+  } as unknown as ReturnType<typeof useGetConfig>);
+}
+
 function mockSuccess(bookingsData: Booking[] = bookings, typesData: MeetingType[] = meetingTypes) {
   const bookingsRefetch = vi.fn();
   const typesRefetch = vi.fn();
 
+  mockConfig();
   mockedUseListBookings.mockReturnValue(
     queryResult(bookingsData, bookingsRefetch) as unknown as ReturnType<typeof useListBookings>,
   );
@@ -104,8 +123,11 @@ describe("AdminPage", () => {
   beforeEach(() => {
     vi.useFakeTimers({ toFake: ["Date"] });
     vi.setSystemTime(now);
+    mockedUseGetConfig.mockReset();
     mockedUseListBookings.mockReset();
     mockedUseListMeetingTypes.mockReset();
+
+    mockConfig();
   });
 
   afterEach(() => {
@@ -273,5 +295,61 @@ describe("AdminPage", () => {
       query: { staleTime: 0, refetchInterval: 60_000, refetchOnWindowFocus: true },
     });
     expect(screen.queryByRole("button", { name: /Обновить/ })).toBeNull();
+  });
+
+  it("caches the owner config and revalidates it when the window regains focus", () => {
+    mockSuccess();
+
+    renderPage();
+
+    expect(mockedUseGetConfig).toHaveBeenCalledWith({
+      query: { staleTime: 5 * 60 * 1000, refetchOnWindowFocus: "always" },
+    });
+  });
+
+  it("formats day headings and intervals in the timezone from the config", () => {
+    mockSuccess();
+    mockedUseGetConfig.mockReturnValue(
+      queryResult({ ...config, timezone: "Asia/Yekaterinburg" }) as unknown as ReturnType<
+        typeof useGetConfig
+      >,
+    );
+
+    renderPage();
+
+    expect(screen.getByText("Время указано по Asia/Yekaterinburg.")).toBeVisible();
+
+    const [today] = screen.getAllByRole("region");
+    const [firstRow] = within(today).getAllByRole("listitem");
+
+    expect(within(firstRow).getByText("11:00–11:30")).toBeVisible();
+  });
+
+  it("shows the list skeleton while the owner config is loading", () => {
+    mockSuccess();
+    mockConfig({ data: undefined, isLoading: true });
+
+    renderPage();
+
+    const status = screen.getByRole("status");
+    expect(status).toHaveAttribute("aria-busy", "true");
+    expect(status).toHaveTextContent("Загружаем встречи…");
+  });
+
+  it("shows the error state and retries all three queries when the config fails", async () => {
+    const user = userEvent.setup();
+    const configRefetch = vi.fn();
+    const { bookingsRefetch, typesRefetch } = mockSuccess();
+    mockConfig({ data: undefined, isLoading: false, isError: true, refetch: configRefetch });
+
+    renderPage();
+
+    expect(screen.getByRole("alert")).toHaveTextContent("Не удалось загрузить встречи");
+
+    await user.click(screen.getByRole("button", { name: "Повторить" }));
+
+    expect(configRefetch).toHaveBeenCalledTimes(1);
+    expect(bookingsRefetch).toHaveBeenCalledTimes(1);
+    expect(typesRefetch).toHaveBeenCalledTimes(1);
   });
 });
