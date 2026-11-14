@@ -19,6 +19,19 @@ mise run dev
 
 `mise run dev` запускает оба сервиса в фоне и завершается; управление — `mise daemons status|logs|stop`. Порт backend переопределяется через `PORT`, разрешённый origin — через `CORS_ALLOWED_ORIGIN`. Подробности по командам и структуре — в [AGENTS.md](AGENTS.md).
 
+### 🎭 E2E-тесты
+
+```bash
+mise run e2e:install   # один раз: скачать chromium
+mise run test:e2e      # E2E на настоящих backend и frontend
+```
+
+- Playwright сам поднимает backend на `:8091` и frontend на `:5191` и гасит их после прогона, поэтому `mise run dev` на `:8081`/`:5173` можно не останавливать. `reuseExistingServer: false` гарантирует чистый in-memory backend на каждый прогон.
+- `mise run check` запускает `hk check --all` и `mise run test:e2e`; `mise run check:fast` — только быстрые проверки без браузеров, её использует pre-commit.
+- Конфиг — `playwright.config.ts` в корне, сценарии и фикстуры — `e2e/`. Прогон последовательный (`workers: 1`, только chromium), с обязательным `globalTimeout`.
+- Отчёты и артефакты попадают в `playwright-report/` и `test-results/` и не коммитятся. В CI job `check` ставит chromium с системными зависимостями и складывает `playwright-report/` артефактом.
+- Тесты ходят в настоящий API без моков; нужные данные готовятся через API в самих сценариях.
+
 ## 🛠 Технологический стек
 
 ### Backend
@@ -62,7 +75,7 @@ mise run dev
 | **Валидация**           | Zod                 | Проверка пользовательского ввода        |
 | **Тестирование**        | Vitest + Playwright | Модульные и E2E-тесты                   |
 
-`date-fns`, React Hook Form, Zod и Playwright указаны как целевой стек и подключаются на следующих шагах. В каркасе уже работают React, Vite, React Router, shadcn/ui, Tailwind CSS, Lucide, Orval, TanStack Query и Vitest.
+`date-fns`, React Hook Form и Zod указаны как целевой стек и подключаются на следующих шагах. В каркасе уже работают React, Vite, React Router, shadcn/ui, Tailwind CSS, Lucide, Orval, TanStack Query, Vitest и Playwright (E2E).
 
 ## ⚠️ Ограничения и правила работы
 
