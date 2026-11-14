@@ -25,6 +25,10 @@ steps {
     exclude = List(".github/workflows/hexlet-check.yml")
   }
   ["mise"] = Builtins.mise
+  ["deploy-config"] {
+    glob = List("opencode.json", "railway.json")
+    check = "node scripts/check-deploy-config.mjs"
+  }
   ["typecheck"] {
     glob = List("frontend/**/*.ts", "frontend/**/*.tsx")
     check = "pnpm --dir frontend typecheck"
