@@ -17,8 +17,7 @@
   "devDependencies": {
     "@playwright/test": "^1.65.1",
     "@types/node": "^24.19.2",
-    "orval": "^8.47.0",
-    "typescript": "~7.0.2"
+    "orval": "^8.47.0"
   },
   "engines": {
     "node": ">=24"
