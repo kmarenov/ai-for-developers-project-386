@@ -3,15 +3,20 @@ import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { useListMeetingTypes } from "@/api/generated/calendar";
-import type { MeetingType } from "@/api/generated/model";
+import { useGetConfig, useListAvailableSlots, useListMeetingTypes } from "@/api/generated/calendar";
+import type { ConfigResponse, MeetingType, TimeSlot } from "@/api/generated/model";
+import { App } from "@/App";
 import { MeetingTypesPage } from "@/pages/MeetingTypesPage";
 
 vi.mock("@/api/generated/calendar", () => ({
+  useGetConfig: vi.fn(),
+  useListAvailableSlots: vi.fn(),
   useListMeetingTypes: vi.fn(),
 }));
 
 const mockedUseListMeetingTypes = vi.mocked(useListMeetingTypes);
+const mockedUseGetConfig = vi.mocked(useGetConfig);
+const mockedUseListAvailableSlots = vi.mocked(useListAvailableSlots);
 
 function renderPage() {
   return render(
@@ -21,13 +26,13 @@ function renderPage() {
   );
 }
 
-function queryResult(data: MeetingType[] | undefined) {
+function queryResult<T>(data: T) {
   return {
-    data: data === undefined ? undefined : { data, status: 200 as const, headers: new Headers() },
+    data: { data, status: 200 as const, headers: new Headers() },
     isLoading: false,
     isError: false,
     refetch: vi.fn(),
-  } as unknown as ReturnType<typeof useListMeetingTypes>;
+  };
 }
 
 const meetingTypes: MeetingType[] = [
@@ -45,9 +50,27 @@ const meetingTypes: MeetingType[] = [
   },
 ];
 
+const config: ConfigResponse = {
+  timezone: "Europe/Moscow",
+  working_hours_start: "09:00",
+  working_hours_end: "18:00",
+  slot_step_minutes: 15,
+  booking_window_days: 14,
+  today: "2026-11-14",
+};
+
 describe("MeetingTypesPage", () => {
   beforeEach(() => {
     mockedUseListMeetingTypes.mockReset();
+    mockedUseGetConfig.mockReset();
+    mockedUseListAvailableSlots.mockReset();
+
+    mockedUseGetConfig.mockReturnValue(
+      queryResult(config) as unknown as ReturnType<typeof useGetConfig>,
+    );
+    mockedUseListAvailableSlots.mockReturnValue(
+      queryResult([] as TimeSlot[]) as unknown as ReturnType<typeof useListAvailableSlots>,
+    );
   });
 
   it("shows a loading state while the catalog is fetched", () => {
@@ -82,7 +105,9 @@ describe("MeetingTypesPage", () => {
   });
 
   it("shows an empty state when the owner has not published any meeting types", () => {
-    mockedUseListMeetingTypes.mockReturnValue(queryResult([]));
+    mockedUseListMeetingTypes.mockReturnValue(
+      queryResult([]) as unknown as ReturnType<typeof useListMeetingTypes>,
+    );
 
     renderPage();
 
@@ -90,7 +115,9 @@ describe("MeetingTypesPage", () => {
   });
 
   it("renders meeting types in creation order with title, description and duration", () => {
-    mockedUseListMeetingTypes.mockReturnValue(queryResult(meetingTypes));
+    mockedUseListMeetingTypes.mockReturnValue(
+      queryResult(meetingTypes) as unknown as ReturnType<typeof useListMeetingTypes>,
+    );
 
     renderPage();
 
@@ -104,5 +131,26 @@ describe("MeetingTypesPage", () => {
     expect(within(cards[1]).getByText("Короткий звонок")).toBeInTheDocument();
     expect(within(cards[1]).getByText("15 минут")).toBeInTheDocument();
     expect(cards[1].querySelector('[data-slot="card-description"]')).toBeNull();
+  });
+
+  it("opens the booking page of the selected meeting type", async () => {
+    const user = userEvent.setup();
+    mockedUseListMeetingTypes.mockReturnValue(
+      queryResult(meetingTypes) as unknown as ReturnType<typeof useListMeetingTypes>,
+    );
+
+    render(
+      <MemoryRouter initialEntries={["/meeting-types"]}>
+        <App />
+      </MemoryRouter>,
+    );
+
+    const cardLink = screen.getByRole("link", { name: /Встреча 30 минут/ });
+    expect(cardLink).toHaveAttribute("href", `/meeting-types/${meetingTypes[0].id}`);
+
+    await user.click(cardLink);
+
+    expect(screen.getByRole("heading", { name: "Встреча 30 минут" })).toBeInTheDocument();
+    expect(screen.getByText("Время указано по Москве (МСК).")).toBeInTheDocument();
   });
 });
