@@ -48,6 +48,29 @@ export function timezoneAbbreviation(timezone: string): string {
   return timezone;
 }
 
+/** Formats an owner-list day header: «Сегодня, пн, 10 ноября», «Завтра, вт, 11 ноября», «ср, 12 ноября». */
+export function formatDayHeading(startTime: string, timezone: string, now: Date): string {
+  const start = new TZDate(startTime, timezone);
+  const today = new TZDate(now, timezone);
+  const tomorrow = addDays(today, 1);
+  const label = format(start, "EEEEEE, d MMMM", { locale: ru });
+  const dayKey = format(start, "yyyy-MM-dd");
+
+  if (dayKey === format(today, "yyyy-MM-dd")) {
+    return `Сегодня, ${label}`;
+  }
+  if (dayKey === format(tomorrow, "yyyy-MM-dd")) {
+    return `Завтра, ${label}`;
+  }
+
+  return label;
+}
+
+/** Formats an interval as «09:00–09:30» in the owner timezone. */
+export function formatTimeRange(startTime: string, endTime: string, timezone: string): string {
+  return `${formatSlotTime(startTime, timezone)}–${formatSlotTime(endTime, timezone)}`;
+}
+
 /** Formats a booking interval as «10 ноября, 09:00–09:30 (МСК)». */
 export function formatBookingRange(startTime: string, endTime: string, timezone: string): string {
   const start = new TZDate(startTime, timezone);
