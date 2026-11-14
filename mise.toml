@@ -44,8 +44,8 @@ description = "Type-check the frontend"
 run = "pnpm --dir frontend typecheck"
 
 [tasks."test:backend"]
-description = "Run backend tests"
-run = "cd backend && go test ./..."
+description = "Run backend tests with the race detector"
+run = "cd backend && go test -race ./..."
 
 [tasks."test:frontend"]
 description = "Run frontend tests"
@@ -55,8 +55,21 @@ run = "pnpm --dir frontend test"
 description = "Run backend and frontend tests"
 run = ["mise run test:backend", "mise run test:frontend"]
 
+[tasks."e2e:install"]
+description = "Install the Playwright chromium browser"
+run = "pnpm exec playwright install chromium"
+
+[tasks."test:e2e"]
+description = "Run Playwright E2E against a real backend and frontend"
+raw_args = true
+run = "pnpm exec playwright test"
+
 [tasks.check]
-description = "Run all checks: format, lint, typecheck, tests"
+description = "Run all checks: format, lint, typecheck, unit tests, E2E"
+run = ["hk check --all", "mise run test:e2e"]
+
+[tasks."check:fast"]
+description = "Run checks without browsers (used by the pre-commit hook)"
 run = "hk check --all"
 
 [tasks.dev]

@@ -7,8 +7,10 @@
  */
 
 export * from './booking';
+export * from './configResponse';
 export * from './createBookingRequest';
 export * from './createMeetingTypeRequest';
+export * from './errorCode';
 export * from './errorResponse';
 export * from './healthResponse';
 export * from './healthResponseStatus';

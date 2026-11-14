@@ -10,17 +10,33 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/kmarenov/ai-for-developers-project-386/backend/internal/booking"
 	"github.com/kmarenov/ai-for-developers-project-386/backend/internal/config"
 	"github.com/kmarenov/ai-for-developers-project-386/backend/internal/httpapi"
+	"github.com/kmarenov/ai-for-developers-project-386/backend/internal/meetingtype"
+	"github.com/kmarenov/ai-for-developers-project-386/backend/internal/timerules"
 )
 
 func main() {
 	cfg := config.Load()
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
 
+	timeRules, err := timerules.New(timerules.DefaultConfig())
+	if err != nil {
+		logger.Error("invalid time configuration", "error", err)
+		os.Exit(1)
+	}
+
 	server := &http.Server{
-		Addr:              ":" + cfg.Port,
-		Handler:           httpapi.NewRouter(logger, cfg.AllowedOrigin),
+		Addr: ":" + cfg.Port,
+		Handler: httpapi.NewRouter(httpapi.Deps{
+			Logger:        logger,
+			AllowedOrigin: cfg.AllowedOrigin,
+			MeetingTypes:  meetingtype.NewStore(),
+			TimeRules:     timeRules,
+			Bookings:      booking.NewStore(),
+			Now:           time.Now,
+		}),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 

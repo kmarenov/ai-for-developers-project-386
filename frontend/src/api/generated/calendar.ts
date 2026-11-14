@@ -30,8 +30,10 @@ import {
 
 import type {
   Booking,
+  ConfigResponse,
   CreateBookingRequest,
   CreateMeetingTypeRequest,
+  ErrorResponse,
   HealthResponse,
   ListAvailableSlotsParams,
   MeetingType,
@@ -66,12 +68,27 @@ export type listAvailableSlotsResponse200 = {
   status: 200
 }
 
+export type listAvailableSlotsResponse400 = {
+  data: ErrorResponse
+  status: 400
+}
+
+export type listAvailableSlotsResponse404 = {
+  data: ErrorResponse
+  status: 404
+}
+
+export type listAvailableSlotsResponse500 = {
+  data: ErrorResponse
+  status: 500
+}
+
 export type listAvailableSlotsResponseSuccess = (listAvailableSlotsResponse200) & {
   headers: Headers;
 };
-;
-
-export type listAvailableSlotsResponse = (listAvailableSlotsResponseSuccess)
+export type listAvailableSlotsResponseError = (listAvailableSlotsResponse400 | listAvailableSlotsResponse404 | listAvailableSlotsResponse500) & {
+  headers: Headers;
+};
 
 export const getListAvailableSlotsUrl = (params: ListAvailableSlotsParams,) => {
   const normalizedParams = new URLSearchParams();
@@ -88,7 +105,7 @@ export const getListAvailableSlotsUrl = (params: ListAvailableSlotsParams,) => {
   return stringifiedParams.length > 0 ? `${env.apiBaseUrl}/available-slots?${stringifiedParams}` : `${env.apiBaseUrl}/available-slots`
 }
 
-export const listAvailableSlots = async (params: ListAvailableSlotsParams, options?: RequestInit): Promise<listAvailableSlotsResponse> => {
+export const listAvailableSlots = async (params: ListAvailableSlotsParams, options?: RequestInit): Promise<listAvailableSlotsResponseSuccess> => {
 
   const res = await fetch(getListAvailableSlotsUrl(params),
   {
@@ -101,9 +118,16 @@ export const listAvailableSlots = async (params: ListAvailableSlotsParams, optio
 
 
   const body = [204, 205, 304].includes(res.status) ? null : await res.text();
+  if (!res.ok) {
 
-  const data: listAvailableSlotsResponse['data'] = body ? JSON.parse(body) : {}
-  return { data, status: res.status, headers: res.headers } as listAvailableSlotsResponse
+    const err: globalThis.Error & {info?: listAvailableSlotsResponseError['data'], status?: number} = new globalThis.Error();
+    const data : listAvailableSlotsResponseError['data'] = body ? JSON.parse(body) : {}
+    err.info = data;
+    err.status = res.status;
+    throw err;
+  }
+  const data: listAvailableSlotsResponseSuccess['data'] = body ? JSON.parse(body) : {}
+  return { data, status: res.status, headers: res.headers } as listAvailableSlotsResponseSuccess
 }
 
 
@@ -117,7 +141,7 @@ export const getListAvailableSlotsQueryKey = (params?: ListAvailableSlotsParams,
     }
 
 
-export const getListAvailableSlotsQueryOptions = <TData = Awaited<ReturnType<typeof listAvailableSlots>>, TError = unknown>(params: ListAvailableSlotsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listAvailableSlots>>, TError, TData>>, fetch?: RequestInit}
+export const getListAvailableSlotsQueryOptions = <TData = Awaited<ReturnType<typeof listAvailableSlots>>, TError = globalThis.Error & { info?: ErrorResponse; status?: number }>(params: ListAvailableSlotsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listAvailableSlots>>, TError, TData>>, fetch?: RequestInit}
 ) => {
 
 const {query: queryOptions, fetch: fetchOptions} = options ?? {};
@@ -132,14 +156,14 @@ const {query: queryOptions, fetch: fetchOptions} = options ?? {};
 
 
 
-   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listAvailableSlots>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+   return  { queryKey, queryFn,   retry: 2,  ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listAvailableSlots>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
 }
 
 export type ListAvailableSlotsQueryResult = NonNullable<Awaited<ReturnType<typeof listAvailableSlots>>>
-export type ListAvailableSlotsQueryError = unknown
+export type ListAvailableSlotsQueryError = globalThis.Error & { info?: ErrorResponse; status?: number }
 
 
-export function useListAvailableSlots<TData = Awaited<ReturnType<typeof listAvailableSlots>>, TError = unknown>(
+export function useListAvailableSlots<TData = Awaited<ReturnType<typeof listAvailableSlots>>, TError = globalThis.Error & { info?: ErrorResponse; status?: number }>(
  params: ListAvailableSlotsParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof listAvailableSlots>>, TError, TData>> & Pick<
         DefinedInitialDataOptions<
           Awaited<ReturnType<typeof listAvailableSlots>>,
@@ -149,7 +173,7 @@ export function useListAvailableSlots<TData = Awaited<ReturnType<typeof listAvai
       >, fetch?: RequestInit}
  , queryClient?: QueryClient
   ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useListAvailableSlots<TData = Awaited<ReturnType<typeof listAvailableSlots>>, TError = unknown>(
+export function useListAvailableSlots<TData = Awaited<ReturnType<typeof listAvailableSlots>>, TError = globalThis.Error & { info?: ErrorResponse; status?: number }>(
  params: ListAvailableSlotsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listAvailableSlots>>, TError, TData>> & Pick<
         UndefinedInitialDataOptions<
           Awaited<ReturnType<typeof listAvailableSlots>>,
@@ -159,11 +183,11 @@ export function useListAvailableSlots<TData = Awaited<ReturnType<typeof listAvai
       >, fetch?: RequestInit}
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useListAvailableSlots<TData = Awaited<ReturnType<typeof listAvailableSlots>>, TError = unknown>(
+export function useListAvailableSlots<TData = Awaited<ReturnType<typeof listAvailableSlots>>, TError = globalThis.Error & { info?: ErrorResponse; status?: number }>(
  params: ListAvailableSlotsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listAvailableSlots>>, TError, TData>>, fetch?: RequestInit}
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useListAvailableSlots<TData = Awaited<ReturnType<typeof listAvailableSlots>>, TError = unknown>(
+export function useListAvailableSlots<TData = Awaited<ReturnType<typeof listAvailableSlots>>, TError = globalThis.Error & { info?: ErrorResponse; status?: number }>(
  params: ListAvailableSlotsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listAvailableSlots>>, TError, TData>>, fetch?: RequestInit}
  , queryClient?: QueryClient
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
@@ -186,12 +210,17 @@ export type listBookingsResponse200 = {
   status: 200
 }
 
+export type listBookingsResponse500 = {
+  data: ErrorResponse
+  status: 500
+}
+
 export type listBookingsResponseSuccess = (listBookingsResponse200) & {
   headers: Headers;
 };
-;
-
-export type listBookingsResponse = (listBookingsResponseSuccess)
+export type listBookingsResponseError = (listBookingsResponse500) & {
+  headers: Headers;
+};
 
 export const getListBookingsUrl = () => {
 
@@ -201,7 +230,7 @@ export const getListBookingsUrl = () => {
   return `${env.apiBaseUrl}/bookings`
 }
 
-export const listBookings = async ( options?: RequestInit): Promise<listBookingsResponse> => {
+export const listBookings = async ( options?: RequestInit): Promise<listBookingsResponseSuccess> => {
 
   const res = await fetch(getListBookingsUrl(),
   {
@@ -214,9 +243,16 @@ export const listBookings = async ( options?: RequestInit): Promise<listBookings
 
 
   const body = [204, 205, 304].includes(res.status) ? null : await res.text();
+  if (!res.ok) {
 
-  const data: listBookingsResponse['data'] = body ? JSON.parse(body) : {}
-  return { data, status: res.status, headers: res.headers } as listBookingsResponse
+    const err: globalThis.Error & {info?: listBookingsResponseError['data'], status?: number} = new globalThis.Error();
+    const data : listBookingsResponseError['data'] = body ? JSON.parse(body) : {}
+    err.info = data;
+    err.status = res.status;
+    throw err;
+  }
+  const data: listBookingsResponseSuccess['data'] = body ? JSON.parse(body) : {}
+  return { data, status: res.status, headers: res.headers } as listBookingsResponseSuccess
 }
 
 
@@ -230,7 +266,7 @@ export const getListBookingsQueryKey = () => {
     }
 
 
-export const getListBookingsQueryOptions = <TData = Awaited<ReturnType<typeof listBookings>>, TError = unknown>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listBookings>>, TError, TData>>, fetch?: RequestInit}
+export const getListBookingsQueryOptions = <TData = Awaited<ReturnType<typeof listBookings>>, TError = globalThis.Error & { info?: ErrorResponse; status?: number }>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listBookings>>, TError, TData>>, fetch?: RequestInit}
 ) => {
 
 const {query: queryOptions, fetch: fetchOptions} = options ?? {};
@@ -245,14 +281,14 @@ const {query: queryOptions, fetch: fetchOptions} = options ?? {};
 
 
 
-   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listBookings>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+   return  { queryKey, queryFn,   retry: 2,  ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listBookings>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
 }
 
 export type ListBookingsQueryResult = NonNullable<Awaited<ReturnType<typeof listBookings>>>
-export type ListBookingsQueryError = unknown
+export type ListBookingsQueryError = globalThis.Error & { info?: ErrorResponse; status?: number }
 
 
-export function useListBookings<TData = Awaited<ReturnType<typeof listBookings>>, TError = unknown>(
+export function useListBookings<TData = Awaited<ReturnType<typeof listBookings>>, TError = globalThis.Error & { info?: ErrorResponse; status?: number }>(
   options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof listBookings>>, TError, TData>> & Pick<
         DefinedInitialDataOptions<
           Awaited<ReturnType<typeof listBookings>>,
@@ -262,7 +298,7 @@ export function useListBookings<TData = Awaited<ReturnType<typeof listBookings>>
       >, fetch?: RequestInit}
  , queryClient?: QueryClient
   ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useListBookings<TData = Awaited<ReturnType<typeof listBookings>>, TError = unknown>(
+export function useListBookings<TData = Awaited<ReturnType<typeof listBookings>>, TError = globalThis.Error & { info?: ErrorResponse; status?: number }>(
   options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listBookings>>, TError, TData>> & Pick<
         UndefinedInitialDataOptions<
           Awaited<ReturnType<typeof listBookings>>,
@@ -272,11 +308,11 @@ export function useListBookings<TData = Awaited<ReturnType<typeof listBookings>>
       >, fetch?: RequestInit}
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useListBookings<TData = Awaited<ReturnType<typeof listBookings>>, TError = unknown>(
+export function useListBookings<TData = Awaited<ReturnType<typeof listBookings>>, TError = globalThis.Error & { info?: ErrorResponse; status?: number }>(
   options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listBookings>>, TError, TData>>, fetch?: RequestInit}
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useListBookings<TData = Awaited<ReturnType<typeof listBookings>>, TError = unknown>(
+export function useListBookings<TData = Awaited<ReturnType<typeof listBookings>>, TError = globalThis.Error & { info?: ErrorResponse; status?: number }>(
   options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listBookings>>, TError, TData>>, fetch?: RequestInit}
  , queryClient?: QueryClient
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
@@ -294,17 +330,37 @@ export function useListBookings<TData = Awaited<ReturnType<typeof listBookings>>
 
 
 
-export type createBookingResponse200 = {
+export type createBookingResponse201 = {
   data: Booking
-  status: 200
+  status: 201
 }
 
-export type createBookingResponseSuccess = (createBookingResponse200) & {
+export type createBookingResponse400 = {
+  data: ErrorResponse
+  status: 400
+}
+
+export type createBookingResponse404 = {
+  data: ErrorResponse
+  status: 404
+}
+
+export type createBookingResponse409 = {
+  data: ErrorResponse
+  status: 409
+}
+
+export type createBookingResponse500 = {
+  data: ErrorResponse
+  status: 500
+}
+
+export type createBookingResponseSuccess = (createBookingResponse201) & {
   headers: Headers;
 };
-;
-
-export type createBookingResponse = (createBookingResponseSuccess)
+export type createBookingResponseError = (createBookingResponse400 | createBookingResponse404 | createBookingResponse409 | createBookingResponse500) & {
+  headers: Headers;
+};
 
 export const getCreateBookingUrl = () => {
 
@@ -314,7 +370,7 @@ export const getCreateBookingUrl = () => {
   return `${env.apiBaseUrl}/bookings`
 }
 
-export const createBooking = async (createBookingRequest: CreateBookingRequest, options?: RequestInit): Promise<createBookingResponse> => {
+export const createBooking = async (createBookingRequest: CreateBookingRequest, options?: RequestInit): Promise<createBookingResponseSuccess> => {
 
     const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
     if (!h) return {};
@@ -341,9 +397,16 @@ const res = await fetch(getCreateBookingUrl(),
 
 
   const body = [204, 205, 304].includes(res.status) ? null : await res.text();
+  if (!res.ok) {
 
-  const data: createBookingResponse['data'] = body ? JSON.parse(body) : {}
-  return { data, status: res.status, headers: res.headers } as createBookingResponse
+    const err: globalThis.Error & {info?: createBookingResponseError['data'], status?: number} = new globalThis.Error();
+    const data : createBookingResponseError['data'] = body ? JSON.parse(body) : {}
+    err.info = data;
+    err.status = res.status;
+    throw err;
+  }
+  const data: createBookingResponseSuccess['data'] = body ? JSON.parse(body) : {}
+  return { data, status: res.status, headers: res.headers } as createBookingResponseSuccess
 }
 
 
@@ -352,7 +415,7 @@ const res = await fetch(getCreateBookingUrl(),
 
 export const getCreateBookingMutationKey = () => ['createBooking'] as const;
 
-export const getCreateBookingMutationOptions = <TError = unknown,
+export const getCreateBookingMutationOptions = <TError = globalThis.Error & { info?: ErrorResponse; status?: number },
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createBooking>>, TError,CreateBookingMutationVariables, TContext>, fetch?: RequestInit}
 ): UseMutationOptions<Awaited<ReturnType<typeof createBooking>>, TError,CreateBookingMutationVariables, TContext> => {
 
@@ -381,10 +444,10 @@ const {mutation: mutationOptions, fetch: fetchOptions} = options ?
 
     export type CreateBookingMutationResult = NonNullable<Awaited<ReturnType<typeof createBooking>>>
     export type CreateBookingMutationBody = CreateBookingRequest
-    export type CreateBookingMutationError = unknown
+    export type CreateBookingMutationError = globalThis.Error & { info?: ErrorResponse; status?: number }
     export type CreateBookingMutationVariables = {data: CreateBookingRequest}
 
-    export const useCreateBooking = <TError = unknown,
+    export const useCreateBooking = <TError = globalThis.Error & { info?: ErrorResponse; status?: number },
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createBooking>>, TError,CreateBookingMutationVariables, TContext>, fetch?: RequestInit}
  , queryClient?: QueryClient): UseMutationResult<
         Awaited<ReturnType<typeof createBooking>>,
@@ -395,17 +458,147 @@ const {mutation: mutationOptions, fetch: fetchOptions} = options ?
       return useMutation(getCreateBookingMutationOptions(options), queryClient);
     }
 
+export type getConfigResponse200 = {
+  data: ConfigResponse
+  status: 200
+}
+
+export type getConfigResponse500 = {
+  data: ErrorResponse
+  status: 500
+}
+
+export type getConfigResponseSuccess = (getConfigResponse200) & {
+  headers: Headers;
+};
+export type getConfigResponseError = (getConfigResponse500) & {
+  headers: Headers;
+};
+
+export const getGetConfigUrl = () => {
+
+
+
+
+  return `${env.apiBaseUrl}/config`
+}
+
+export const getConfig = async ( options?: RequestInit): Promise<getConfigResponseSuccess> => {
+
+  const res = await fetch(getGetConfigUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+)
+
+
+  const body = [204, 205, 304].includes(res.status) ? null : await res.text();
+  if (!res.ok) {
+
+    const err: globalThis.Error & {info?: getConfigResponseError['data'], status?: number} = new globalThis.Error();
+    const data : getConfigResponseError['data'] = body ? JSON.parse(body) : {}
+    err.info = data;
+    err.status = res.status;
+    throw err;
+  }
+  const data: getConfigResponseSuccess['data'] = body ? JSON.parse(body) : {}
+  return { data, status: res.status, headers: res.headers } as getConfigResponseSuccess
+}
+
+
+
+
+
+export const getGetConfigQueryKey = () => {
+    return [
+    `${env.apiBaseUrl}/config`
+    ] as const;
+    }
+
+
+export const getGetConfigQueryOptions = <TData = Awaited<ReturnType<typeof getConfig>>, TError = globalThis.Error & { info?: ErrorResponse; status?: number }>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getConfig>>, TError, TData>>, fetch?: RequestInit}
+) => {
+
+const {query: queryOptions, fetch: fetchOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetConfigQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getConfig>>> = ({ signal }) => getConfig({ signal, ...fetchOptions });
+
+
+
+
+
+   return  { queryKey, queryFn,   retry: 2,  ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getConfig>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetConfigQueryResult = NonNullable<Awaited<ReturnType<typeof getConfig>>>
+export type GetConfigQueryError = globalThis.Error & { info?: ErrorResponse; status?: number }
+
+
+export function useGetConfig<TData = Awaited<ReturnType<typeof getConfig>>, TError = globalThis.Error & { info?: ErrorResponse; status?: number }>(
+  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getConfig>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getConfig>>,
+          TError,
+          Awaited<ReturnType<typeof getConfig>>
+        > , 'initialData'
+      >, fetch?: RequestInit}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetConfig<TData = Awaited<ReturnType<typeof getConfig>>, TError = globalThis.Error & { info?: ErrorResponse; status?: number }>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getConfig>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getConfig>>,
+          TError,
+          Awaited<ReturnType<typeof getConfig>>
+        > , 'initialData'
+      >, fetch?: RequestInit}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetConfig<TData = Awaited<ReturnType<typeof getConfig>>, TError = globalThis.Error & { info?: ErrorResponse; status?: number }>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getConfig>>, TError, TData>>, fetch?: RequestInit}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetConfig<TData = Awaited<ReturnType<typeof getConfig>>, TError = globalThis.Error & { info?: ErrorResponse; status?: number }>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getConfig>>, TError, TData>>, fetch?: RequestInit}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetConfigQueryOptions(options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
 export type getHealthResponse200 = {
   data: HealthResponse
   status: 200
 }
 
+export type getHealthResponse500 = {
+  data: ErrorResponse
+  status: 500
+}
+
 export type getHealthResponseSuccess = (getHealthResponse200) & {
   headers: Headers;
 };
-;
-
-export type getHealthResponse = (getHealthResponseSuccess)
+export type getHealthResponseError = (getHealthResponse500) & {
+  headers: Headers;
+};
 
 export const getGetHealthUrl = () => {
 
@@ -415,7 +608,7 @@ export const getGetHealthUrl = () => {
   return `${env.apiBaseUrl}/health`
 }
 
-export const getHealth = async ( options?: RequestInit): Promise<getHealthResponse> => {
+export const getHealth = async ( options?: RequestInit): Promise<getHealthResponseSuccess> => {
 
   const res = await fetch(getGetHealthUrl(),
   {
@@ -428,9 +621,16 @@ export const getHealth = async ( options?: RequestInit): Promise<getHealthRespon
 
 
   const body = [204, 205, 304].includes(res.status) ? null : await res.text();
+  if (!res.ok) {
 
-  const data: getHealthResponse['data'] = body ? JSON.parse(body) : {}
-  return { data, status: res.status, headers: res.headers } as getHealthResponse
+    const err: globalThis.Error & {info?: getHealthResponseError['data'], status?: number} = new globalThis.Error();
+    const data : getHealthResponseError['data'] = body ? JSON.parse(body) : {}
+    err.info = data;
+    err.status = res.status;
+    throw err;
+  }
+  const data: getHealthResponseSuccess['data'] = body ? JSON.parse(body) : {}
+  return { data, status: res.status, headers: res.headers } as getHealthResponseSuccess
 }
 
 
@@ -444,7 +644,7 @@ export const getGetHealthQueryKey = () => {
     }
 
 
-export const getGetHealthQueryOptions = <TData = Awaited<ReturnType<typeof getHealth>>, TError = unknown>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getHealth>>, TError, TData>>, fetch?: RequestInit}
+export const getGetHealthQueryOptions = <TData = Awaited<ReturnType<typeof getHealth>>, TError = globalThis.Error & { info?: ErrorResponse; status?: number }>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getHealth>>, TError, TData>>, fetch?: RequestInit}
 ) => {
 
 const {query: queryOptions, fetch: fetchOptions} = options ?? {};
@@ -459,14 +659,14 @@ const {query: queryOptions, fetch: fetchOptions} = options ?? {};
 
 
 
-   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getHealth>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+   return  { queryKey, queryFn,   retry: 2,  ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getHealth>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
 }
 
 export type GetHealthQueryResult = NonNullable<Awaited<ReturnType<typeof getHealth>>>
-export type GetHealthQueryError = unknown
+export type GetHealthQueryError = globalThis.Error & { info?: ErrorResponse; status?: number }
 
 
-export function useGetHealth<TData = Awaited<ReturnType<typeof getHealth>>, TError = unknown>(
+export function useGetHealth<TData = Awaited<ReturnType<typeof getHealth>>, TError = globalThis.Error & { info?: ErrorResponse; status?: number }>(
   options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getHealth>>, TError, TData>> & Pick<
         DefinedInitialDataOptions<
           Awaited<ReturnType<typeof getHealth>>,
@@ -476,7 +676,7 @@ export function useGetHealth<TData = Awaited<ReturnType<typeof getHealth>>, TErr
       >, fetch?: RequestInit}
  , queryClient?: QueryClient
   ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetHealth<TData = Awaited<ReturnType<typeof getHealth>>, TError = unknown>(
+export function useGetHealth<TData = Awaited<ReturnType<typeof getHealth>>, TError = globalThis.Error & { info?: ErrorResponse; status?: number }>(
   options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getHealth>>, TError, TData>> & Pick<
         UndefinedInitialDataOptions<
           Awaited<ReturnType<typeof getHealth>>,
@@ -486,11 +686,11 @@ export function useGetHealth<TData = Awaited<ReturnType<typeof getHealth>>, TErr
       >, fetch?: RequestInit}
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetHealth<TData = Awaited<ReturnType<typeof getHealth>>, TError = unknown>(
+export function useGetHealth<TData = Awaited<ReturnType<typeof getHealth>>, TError = globalThis.Error & { info?: ErrorResponse; status?: number }>(
   options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getHealth>>, TError, TData>>, fetch?: RequestInit}
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetHealth<TData = Awaited<ReturnType<typeof getHealth>>, TError = unknown>(
+export function useGetHealth<TData = Awaited<ReturnType<typeof getHealth>>, TError = globalThis.Error & { info?: ErrorResponse; status?: number }>(
   options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getHealth>>, TError, TData>>, fetch?: RequestInit}
  , queryClient?: QueryClient
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
@@ -513,12 +713,17 @@ export type listMeetingTypesResponse200 = {
   status: 200
 }
 
+export type listMeetingTypesResponse500 = {
+  data: ErrorResponse
+  status: 500
+}
+
 export type listMeetingTypesResponseSuccess = (listMeetingTypesResponse200) & {
   headers: Headers;
 };
-;
-
-export type listMeetingTypesResponse = (listMeetingTypesResponseSuccess)
+export type listMeetingTypesResponseError = (listMeetingTypesResponse500) & {
+  headers: Headers;
+};
 
 export const getListMeetingTypesUrl = () => {
 
@@ -528,7 +733,7 @@ export const getListMeetingTypesUrl = () => {
   return `${env.apiBaseUrl}/meeting-types`
 }
 
-export const listMeetingTypes = async ( options?: RequestInit): Promise<listMeetingTypesResponse> => {
+export const listMeetingTypes = async ( options?: RequestInit): Promise<listMeetingTypesResponseSuccess> => {
 
   const res = await fetch(getListMeetingTypesUrl(),
   {
@@ -541,9 +746,16 @@ export const listMeetingTypes = async ( options?: RequestInit): Promise<listMeet
 
 
   const body = [204, 205, 304].includes(res.status) ? null : await res.text();
+  if (!res.ok) {
 
-  const data: listMeetingTypesResponse['data'] = body ? JSON.parse(body) : {}
-  return { data, status: res.status, headers: res.headers } as listMeetingTypesResponse
+    const err: globalThis.Error & {info?: listMeetingTypesResponseError['data'], status?: number} = new globalThis.Error();
+    const data : listMeetingTypesResponseError['data'] = body ? JSON.parse(body) : {}
+    err.info = data;
+    err.status = res.status;
+    throw err;
+  }
+  const data: listMeetingTypesResponseSuccess['data'] = body ? JSON.parse(body) : {}
+  return { data, status: res.status, headers: res.headers } as listMeetingTypesResponseSuccess
 }
 
 
@@ -557,7 +769,7 @@ export const getListMeetingTypesQueryKey = () => {
     }
 
 
-export const getListMeetingTypesQueryOptions = <TData = Awaited<ReturnType<typeof listMeetingTypes>>, TError = unknown>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listMeetingTypes>>, TError, TData>>, fetch?: RequestInit}
+export const getListMeetingTypesQueryOptions = <TData = Awaited<ReturnType<typeof listMeetingTypes>>, TError = globalThis.Error & { info?: ErrorResponse; status?: number }>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listMeetingTypes>>, TError, TData>>, fetch?: RequestInit}
 ) => {
 
 const {query: queryOptions, fetch: fetchOptions} = options ?? {};
@@ -572,14 +784,14 @@ const {query: queryOptions, fetch: fetchOptions} = options ?? {};
 
 
 
-   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listMeetingTypes>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+   return  { queryKey, queryFn,   retry: 2,  ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listMeetingTypes>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
 }
 
 export type ListMeetingTypesQueryResult = NonNullable<Awaited<ReturnType<typeof listMeetingTypes>>>
-export type ListMeetingTypesQueryError = unknown
+export type ListMeetingTypesQueryError = globalThis.Error & { info?: ErrorResponse; status?: number }
 
 
-export function useListMeetingTypes<TData = Awaited<ReturnType<typeof listMeetingTypes>>, TError = unknown>(
+export function useListMeetingTypes<TData = Awaited<ReturnType<typeof listMeetingTypes>>, TError = globalThis.Error & { info?: ErrorResponse; status?: number }>(
   options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof listMeetingTypes>>, TError, TData>> & Pick<
         DefinedInitialDataOptions<
           Awaited<ReturnType<typeof listMeetingTypes>>,
@@ -589,7 +801,7 @@ export function useListMeetingTypes<TData = Awaited<ReturnType<typeof listMeetin
       >, fetch?: RequestInit}
  , queryClient?: QueryClient
   ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useListMeetingTypes<TData = Awaited<ReturnType<typeof listMeetingTypes>>, TError = unknown>(
+export function useListMeetingTypes<TData = Awaited<ReturnType<typeof listMeetingTypes>>, TError = globalThis.Error & { info?: ErrorResponse; status?: number }>(
   options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listMeetingTypes>>, TError, TData>> & Pick<
         UndefinedInitialDataOptions<
           Awaited<ReturnType<typeof listMeetingTypes>>,
@@ -599,11 +811,11 @@ export function useListMeetingTypes<TData = Awaited<ReturnType<typeof listMeetin
       >, fetch?: RequestInit}
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useListMeetingTypes<TData = Awaited<ReturnType<typeof listMeetingTypes>>, TError = unknown>(
+export function useListMeetingTypes<TData = Awaited<ReturnType<typeof listMeetingTypes>>, TError = globalThis.Error & { info?: ErrorResponse; status?: number }>(
   options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listMeetingTypes>>, TError, TData>>, fetch?: RequestInit}
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useListMeetingTypes<TData = Awaited<ReturnType<typeof listMeetingTypes>>, TError = unknown>(
+export function useListMeetingTypes<TData = Awaited<ReturnType<typeof listMeetingTypes>>, TError = globalThis.Error & { info?: ErrorResponse; status?: number }>(
   options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listMeetingTypes>>, TError, TData>>, fetch?: RequestInit}
  , queryClient?: QueryClient
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
@@ -621,17 +833,27 @@ export function useListMeetingTypes<TData = Awaited<ReturnType<typeof listMeetin
 
 
 
-export type createMeetingTypeResponse200 = {
+export type createMeetingTypeResponse201 = {
   data: MeetingType
-  status: 200
+  status: 201
 }
 
-export type createMeetingTypeResponseSuccess = (createMeetingTypeResponse200) & {
+export type createMeetingTypeResponse400 = {
+  data: ErrorResponse
+  status: 400
+}
+
+export type createMeetingTypeResponse500 = {
+  data: ErrorResponse
+  status: 500
+}
+
+export type createMeetingTypeResponseSuccess = (createMeetingTypeResponse201) & {
   headers: Headers;
 };
-;
-
-export type createMeetingTypeResponse = (createMeetingTypeResponseSuccess)
+export type createMeetingTypeResponseError = (createMeetingTypeResponse400 | createMeetingTypeResponse500) & {
+  headers: Headers;
+};
 
 export const getCreateMeetingTypeUrl = () => {
 
@@ -641,7 +863,7 @@ export const getCreateMeetingTypeUrl = () => {
   return `${env.apiBaseUrl}/meeting-types`
 }
 
-export const createMeetingType = async (createMeetingTypeRequest: CreateMeetingTypeRequest, options?: RequestInit): Promise<createMeetingTypeResponse> => {
+export const createMeetingType = async (createMeetingTypeRequest: CreateMeetingTypeRequest, options?: RequestInit): Promise<createMeetingTypeResponseSuccess> => {
 
     const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
     if (!h) return {};
@@ -668,9 +890,16 @@ const res = await fetch(getCreateMeetingTypeUrl(),
 
 
   const body = [204, 205, 304].includes(res.status) ? null : await res.text();
+  if (!res.ok) {
 
-  const data: createMeetingTypeResponse['data'] = body ? JSON.parse(body) : {}
-  return { data, status: res.status, headers: res.headers } as createMeetingTypeResponse
+    const err: globalThis.Error & {info?: createMeetingTypeResponseError['data'], status?: number} = new globalThis.Error();
+    const data : createMeetingTypeResponseError['data'] = body ? JSON.parse(body) : {}
+    err.info = data;
+    err.status = res.status;
+    throw err;
+  }
+  const data: createMeetingTypeResponseSuccess['data'] = body ? JSON.parse(body) : {}
+  return { data, status: res.status, headers: res.headers } as createMeetingTypeResponseSuccess
 }
 
 
@@ -679,7 +908,7 @@ const res = await fetch(getCreateMeetingTypeUrl(),
 
 export const getCreateMeetingTypeMutationKey = () => ['createMeetingType'] as const;
 
-export const getCreateMeetingTypeMutationOptions = <TError = unknown,
+export const getCreateMeetingTypeMutationOptions = <TError = globalThis.Error & { info?: ErrorResponse; status?: number },
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createMeetingType>>, TError,CreateMeetingTypeMutationVariables, TContext>, fetch?: RequestInit}
 ): UseMutationOptions<Awaited<ReturnType<typeof createMeetingType>>, TError,CreateMeetingTypeMutationVariables, TContext> => {
 
@@ -708,10 +937,10 @@ const {mutation: mutationOptions, fetch: fetchOptions} = options ?
 
     export type CreateMeetingTypeMutationResult = NonNullable<Awaited<ReturnType<typeof createMeetingType>>>
     export type CreateMeetingTypeMutationBody = CreateMeetingTypeRequest
-    export type CreateMeetingTypeMutationError = unknown
+    export type CreateMeetingTypeMutationError = globalThis.Error & { info?: ErrorResponse; status?: number }
     export type CreateMeetingTypeMutationVariables = {data: CreateMeetingTypeRequest}
 
-    export const useCreateMeetingType = <TError = unknown,
+    export const useCreateMeetingType = <TError = globalThis.Error & { info?: ErrorResponse; status?: number },
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createMeetingType>>, TError,CreateMeetingTypeMutationVariables, TContext>, fetch?: RequestInit}
  , queryClient?: QueryClient): UseMutationResult<
         Awaited<ReturnType<typeof createMeetingType>>,

@@ -5,7 +5,9 @@
  * Simplified Cal.com-like call booking service.
  * OpenAPI spec version: 0.0.0
  */
+import type { ErrorCode } from './errorCode';
 
 export interface ErrorResponse {
+  code: ErrorCode;
   message: string;
 }

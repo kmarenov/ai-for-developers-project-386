@@ -15,7 +15,19 @@ export default defineConfig({
   server: {
     proxy: {
       "/health": "http://localhost:8081",
-      "/meeting-types": "http://localhost:8081",
+      "/config": "http://localhost:8081",
+      "/meeting-types": {
+        target: "http://localhost:8081",
+        // `/meeting-types` is both an API prefix and a frontend route. A
+        // browser document navigation (or a refresh) sends Accept: text/html
+        // and must get the SPA shell, while API calls keep proxying to the
+        // backend.
+        bypass(request) {
+          if (request.headers.accept?.includes("text/html")) {
+            return "/index.html";
+          }
+        },
+      },
       "/available-slots": "http://localhost:8081",
       "/bookings": "http://localhost:8081",
     },
