@@ -26,6 +26,36 @@ export function slotDayKey(startTime: string, timezone: string): string {
   return format(new TZDate(startTime, timezone), "yyyy-MM-dd");
 }
 
+export type DayGroup<T> = {
+  key: string;
+  items: T[];
+};
+
+/**
+ * Groups items by their owner-timezone calendar day, keeping the input order.
+ * Both the guest calendar and the owner list rely on the server's ordering.
+ */
+export function groupByDay<T>(
+  items: readonly T[],
+  timezone: string,
+  getStartTime: (item: T) => string,
+): DayGroup<T>[] {
+  const groups: DayGroup<T>[] = [];
+
+  for (const item of items) {
+    const key = slotDayKey(getStartTime(item), timezone);
+    const current = groups.at(-1);
+
+    if (current?.key === key) {
+      current.items.push(item);
+    } else {
+      groups.push({ key, items: [item] });
+    }
+  }
+
+  return groups;
+}
+
 /** Formats a UTC instant as HH:MM in the owner timezone. */
 export function formatSlotTime(startTime: string, timezone: string): string {
   return format(new TZDate(startTime, timezone), "HH:mm");
@@ -66,8 +96,11 @@ export function formatDayHeading(startTime: string, timezone: string, now: Date)
   return label;
 }
 
-/** Formats an interval as «09:00–09:30» in the owner timezone. */
-export function formatTimeRange(startTime: string, endTime: string, timezone: string): string {
+/** Formats an interval as «09:00–09:30» in the owner timezone. */ export function formatTimeRange(
+  startTime: string,
+  endTime: string,
+  timezone: string,
+): string {
   return `${formatSlotTime(startTime, timezone)}–${formatSlotTime(endTime, timezone)}`;
 }
 

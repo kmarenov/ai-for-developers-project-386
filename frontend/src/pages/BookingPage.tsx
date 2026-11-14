@@ -12,7 +12,13 @@ import {
   useListAvailableSlots,
   useListMeetingTypes,
 } from "@/api/generated/calendar";
-import type { Booking, ConfigResponse, MeetingType, TimeSlot } from "@/api/generated/model";
+import type {
+  Booking,
+  ConfigResponse,
+  ErrorCode,
+  MeetingType,
+  TimeSlot,
+} from "@/api/generated/model";
 import { SiteHeader } from "@/components/SiteHeader";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -20,11 +26,12 @@ import {
   buildBookingDays,
   formatBookingRange,
   formatSlotTime,
+  groupByDay,
   slotDayKey,
   timezoneCaption,
 } from "@/lib/datetime";
+import { configQueryOptions } from "@/lib/queries";
 
-const configQueryOptions = { query: { staleTime: 5 * 60 * 1000 } };
 const mutationOptions = { mutation: { retry: 0 } };
 
 const contractEmailPattern = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
@@ -41,15 +48,41 @@ const bookingFormSchema = z.object({
 
 type BookingFormValues = z.infer<typeof bookingFormSchema>;
 
+/** UI-only submission states that have no counterpart in the contract. */
+type UiSubmissionErrorKind = "internal" | "unknown";
+
+/** States the booking page can render for a failed submission. */
 type SubmissionErrorKind =
   | "slot_taken"
   | "invalid_slot"
   | "invalid_request"
   | "meeting_type_not_found"
-  | "internal"
-  | "unknown";
+  | UiSubmissionErrorKind;
 
 type SubmissionError = { kind: SubmissionErrorKind };
+
+/**
+ * Maps every contract error code to a page state. Keying by the generated
+ * ErrorCode keeps the mapping exhaustive: a new code in the contract breaks
+ * the type check until the page decides how to render it.
+ */
+const submissionKindsByCode = {
+  invalid_request: "invalid_request",
+  invalid_slot: "invalid_slot",
+  meeting_type_not_found: "meeting_type_not_found",
+  slot_taken: "slot_taken",
+  internal_error: "internal",
+  not_found: "unknown",
+  method_not_allowed: "unknown",
+} as const satisfies Record<ErrorCode, SubmissionErrorKind>;
+
+function submissionKindForCode(code: string): SubmissionErrorKind | undefined {
+  if (!Object.hasOwn(submissionKindsByCode, code)) {
+    return undefined;
+  }
+
+  return submissionKindsByCode[code as ErrorCode];
+}
 
 const submissionErrorTexts: Record<
   Exclude<SubmissionErrorKind, "slot_taken" | "invalid_slot" | "meeting_type_not_found">,
@@ -72,21 +105,15 @@ const submissionErrorTexts: Record<
 function mapSubmissionError(error: unknown): SubmissionError {
   const apiError = error as { status?: number; info?: { code?: string } } | undefined;
   const code = apiError?.info?.code;
-  const status = apiError?.status;
 
-  if (code === "slot_taken") {
-    return { kind: "slot_taken" };
+  if (code !== undefined) {
+    const kind = submissionKindForCode(code);
+    if (kind !== undefined) {
+      return { kind };
+    }
   }
-  if (code === "invalid_slot") {
-    return { kind: "invalid_slot" };
-  }
-  if (code === "invalid_request") {
-    return { kind: "invalid_request" };
-  }
-  if (code === "meeting_type_not_found" || status === 404) {
-    return { kind: "meeting_type_not_found" };
-  }
-  if (code === "internal_error" || status === undefined || status >= 500) {
+
+  if (apiError?.status === undefined || apiError.status >= 500) {
     return { kind: "internal" };
   }
 
@@ -148,8 +175,7 @@ export function BookingPage() {
   const slotsError = slotsQuery.error;
   const pageUnavailable =
     submitError?.kind === "meeting_type_not_found" ||
-    (slotsQuery.isError &&
-      (slotsError?.info?.code === "meeting_type_not_found" || slotsError?.status === 404));
+    (slotsQuery.isError && slotsError?.info?.code === "meeting_type_not_found");
 
   if (pageUnavailable) {
     return (
@@ -332,17 +358,6 @@ export function BookingPage() {
             </p>
           ) : null}
 
-          {submitError?.kind === "slot_taken" || submitError?.kind === "invalid_slot" ? (
-            <SlotAlert ref={alertRef} kind={submitError.kind} onChooseAnother={focusSlots} />
-          ) : null}
-
-          {submitError !== undefined &&
-          submitError.kind !== "slot_taken" &&
-          submitError.kind !== "invalid_slot" &&
-          submitError.kind !== "meeting_type_not_found" ? (
-            <FormAlert ref={alertRef} kind={submitError.kind} />
-          ) : null}
-
           <div className="space-y-2">
             <label htmlFor="guest-name" className="block text-sm font-medium">
               Имя
@@ -389,6 +404,17 @@ export function BookingPage() {
             ) : null}
           </div>
 
+          {submitError?.kind === "slot_taken" || submitError?.kind === "invalid_slot" ? (
+            <SlotAlert ref={alertRef} kind={submitError.kind} onChooseAnother={focusSlots} />
+          ) : null}
+
+          {submitError !== undefined &&
+          submitError.kind !== "slot_taken" &&
+          submitError.kind !== "invalid_slot" &&
+          submitError.kind !== "meeting_type_not_found" ? (
+            <FormAlert ref={alertRef} kind={submitError.kind} />
+          ) : null}
+
           <Button
             type="submit"
             className="w-full sm:w-auto"
@@ -408,32 +434,16 @@ export function BookingPage() {
           </Button>
         </form>
       ) : null}
-
-      <Link
-        to="/meeting-types"
-        className={buttonVariants({ variant: "ghost", className: "mt-8 self-start" })}
-      >
-        К каталогу встреч
-      </Link>
     </BookingFrame>
   );
 }
 
 function groupSlotsByDay(slots: TimeSlot[], timezone: string) {
-  const slotsByDay = new Map<string, TimeSlot[]>();
-
-  for (const slot of slots) {
-    const day = slotDayKey(slot.start_time, timezone);
-    const existing = slotsByDay.get(day);
-
-    if (existing === undefined) {
-      slotsByDay.set(day, [slot]);
-    } else {
-      existing.push(slot);
-    }
-  }
-
-  return slotsByDay;
+  return new Map(
+    groupByDay(slots, timezone, (slot) => slot.start_time).map(
+      (group) => [group.key, group.items] as const,
+    ),
+  );
 }
 
 function BookingFrame({ children }: { children: ReactNode }) {
